@@ -8,7 +8,9 @@ Open http://localhost:3000
 
 ## Modes
 - **Demo (offline)**: rule based agents, no API key. Always works, use it as the demo backup.
-- **Live AI (Claude)**: create `app/.env` with `ANTHROPIC_API_KEY=sk-ant-...` and restart.
+- **Live AI (Claude)**: create `app/.env` with ONE of these lines, then restart:
+  - `KYLON_API_KEY=pak_...` (uses Kylon's hackathon credits, Claude via the Kylon proxy)
+  - `ANTHROPIC_API_KEY=sk-ant-...` (direct Anthropic account)
   Every bylaw quote returned by the model is checked against the bylaws text;
   anything that can't be found is downgraded to UNCLEAR.
 

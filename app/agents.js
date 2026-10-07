@@ -12,7 +12,14 @@
 // runGovernance / runCompliance with their own implementation as long as they
 // keep the same input and output shapes.
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
+// Provider: a Kylon key (pak_...) routes Claude calls through Kylon's proxy and its credits.
+// Otherwise a direct Anthropic key is used.
+const USE_KYLON = !!process.env.KYLON_API_KEY;
+const API_KEY = () => process.env.KYLON_API_KEY || process.env.ANTHROPIC_API_KEY;
+const API_URL = () => USE_KYLON
+  ? "https://api.kylon.io/proxy/anthropic/v1/messages"
+  : "https://api.anthropic.com/v1/messages";
+const MODEL = process.env.ANTHROPIC_MODEL || (USE_KYLON ? "claude-sonnet-4-6" : "claude-sonnet-5-5");
 
 // ---------- helpers ----------
 
@@ -216,11 +223,11 @@ function mockGovernance({ proposal, gaDate, memberCount, houseName }, checks) {
 // ---------- LIVE agents (Claude) ----------
 
 async function callClaude(system, user) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(API_URL(), {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "x-api-key": API_KEY(),
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({ model: MODEL, max_tokens: 3000, system, messages: [{ role: "user", content: user }] }),
@@ -270,7 +277,7 @@ async function runPipeline(raw) {
     houseName: raw.houseName || "",
     today: raw.today || new Date().toISOString().slice(0, 10),
   };
-  const mode = raw.mode === "live" && process.env.ANTHROPIC_API_KEY ? "live" : "mock";
+  const mode = raw.mode === "live" && API_KEY() ? "live" : "mock";
   const log = [];
 
   const step = async (agent, action, fn) => {
@@ -295,4 +302,4 @@ async function runPipeline(raw) {
   return { mode, checks, ...docs, log };
 }
 
-module.exports = { runPipeline, parseBylaws };
+module.exports = { runPipeline, parseBylaws, liveAvailable: () => !!API_KEY() };

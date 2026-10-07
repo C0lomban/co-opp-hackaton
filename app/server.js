@@ -2,7 +2,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { runPipeline } = require("./agents");
+
 
 // Load app/.env if present (ANTHROPIC_API_KEY=...)
 const envFile = path.join(__dirname, ".env");
@@ -13,6 +13,7 @@ if (fs.existsSync(envFile)) {
   }
 }
 
+const { runPipeline, liveAvailable } = require("./agents");
 const PORT = process.env.PORT || 3000;
 const ROOT = path.join(__dirname, "public");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".txt": "text/plain" };
@@ -21,7 +22,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/api/status") {
       res.writeHead(200, { "content-type": "application/json" });
-      return res.end(JSON.stringify({ liveAvailable: !!process.env.ANTHROPIC_API_KEY }));
+      return res.end(JSON.stringify({ liveAvailable: liveAvailable() }));
     }
     if (req.method === "GET" && req.url === "/sample-bylaws.txt") {
       res.writeHead(200, { "content-type": "text/plain" });
