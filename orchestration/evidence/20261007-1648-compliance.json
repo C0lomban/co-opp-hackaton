@@ -1,0 +1,79 @@
+{
+  "timestamp": "2026-10-07T16:48:09-07:00",
+  "agent": "Bylaws & Compliance Agent",
+  "tool": "Kylon agent; answer pasted by a human, checked by Python",
+  "source": "kylon-agent-pasted",
+  "input_summary": "Raise the house food budget by 10%, 40 members, today 2026-10-07, GA 2026-10-12, sample-bylaws.txt",
+  "output": [
+    {
+      "rule": "Notice period",
+      "status": "FAIL",
+      "section": "Section 2.2",
+      "quote": "Written notice of the agenda must be sent to all members at least\n7 days before a regular GA.",
+      "reasoning": "Needs 7 days' notice. Today is Oct 7 and the GA is Oct 12, so only 5 days are available.",
+      "action_needed": "Move the GA to Oct 14 or later, and send the written agenda to all members today.",
+      "computed": {
+        "days_available": 5,
+        "days_required": 7,
+        "notice_deadline": "2026-10-05",
+        "earliest_compliant_ga": "2026-10-14"
+      }
+    },
+    {
+      "rule": "Quorum",
+      "status": "UNCLEAR",
+      "section": "Section 2.3",
+      "quote": "Quorum is 50 percent of voting members plus one.",
+      "reasoning": "50% of 40 members plus 1 = 21 must attend. Attendance can only be confirmed at the GA.",
+      "action_needed": "Count voting members present at the GA and confirm at least 21.",
+      "computed": {
+        "members": 40,
+        "quorum_needed": 21
+      }
+    },
+    {
+      "rule": "Who can propose",
+      "status": "UNCLEAR",
+      "section": "Section 3.1",
+      "quote": "Any member may propose a motion.",
+      "reasoning": "The bylaws say who may propose, but no proposer is named yet.",
+      "action_needed": "Name the proposer and confirm they are allowed to propose.",
+      "computed": {}
+    },
+    {
+      "rule": "Seconder",
+      "status": "UNCLEAR",
+      "section": "Section 3.1",
+      "quote": "A motion needs a seconder\nto be discussed.",
+      "reasoning": "A seconder is required, but none is named yet.",
+      "action_needed": "Name a seconder before the motion is discussed.",
+      "computed": {}
+    },
+    {
+      "rule": "Vote threshold",
+      "status": "UNCLEAR",
+      "section": "Section 3.3",
+      "quote": "Motions that change the budget by more than 5 percent need\na two-thirds majority and must be reviewed by the Finance Committee\nat least 3 days before the GA.",
+      "reasoning": "Section 3.3 requires 2/3 but does not say whether that is of members present or of all voting members. Of all 40 members: 27 votes. Of members present: depends on attendance (14 votes if only 21 attend).",
+      "action_needed": "Before the vote, decide whether 2/3 means of members present or of all voting members.",
+      "computed": {
+        "votes_needed_if_all_members": 27,
+        "votes_needed_if_quorum_present": 14
+      }
+    },
+    {
+      "rule": "Committee review",
+      "status": "UNCLEAR",
+      "section": "Section 3.3",
+      "quote": "Motions that change the budget by more than 5 percent need\na two-thirds majority and must be reviewed by the Finance Committee\nat least 3 days before the GA.",
+      "reasoning": "Finance Committee must review this by Oct 9 (3 days before the GA on Oct 12). No review is recorded yet.",
+      "action_needed": "Arrange the Finance Committee review by Oct 9 and record it.",
+      "computed": {
+        "review_deadline": "2026-10-09"
+      }
+    }
+  ],
+  "handed_to": "Governance Agent",
+  "status": "ok",
+  "notes": "Answer copied from a Kylon agent by a human, then checked by code like a live answer: format, quotes word for word, statuses."
+}

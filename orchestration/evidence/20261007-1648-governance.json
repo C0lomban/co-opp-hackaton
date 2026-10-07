@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-10-07T16:48:09-07:00",
+  "agent": "Governance Agent",
+  "tool": "Kylon agent; answer pasted by a human, checked by Python",
+  "source": "kylon-agent-pasted",
+  "input_summary": "Raise the house food budget by 10%, 40 members, today 2026-10-07, GA 2026-10-12, sample-bylaws.txt",
+  "output": {
+    "source": "kylon-agent-pasted",
+    "ga_date": "2026-10-12",
+    "before_you_send": [
+      "FAIL: Notice period (Section 2.2). Needs 7 days' notice. Today is Oct 7 and the GA is Oct 12, so only 5 days are available. Action: Move the GA to Oct 14 or later, and send the written agenda to all members today.",
+      "UNCLEAR: Quorum (Section 2.3). 50% of 40 members plus 1 = 21 must attend. Attendance can only be confirmed at the GA. Action: Count voting members present at the GA and confirm at least 21.",
+      "UNCLEAR: Who can propose (Section 3.1). The bylaws say who may propose, but no proposer is named yet. Action: Name the proposer and confirm they are allowed to propose.",
+      "UNCLEAR: Seconder (Section 3.1). A seconder is required, but none is named yet. Action: Name a seconder before the motion is discussed.",
+      "UNCLEAR: Vote threshold (Section 3.3). Section 3.3 requires 2/3 but does not say whether that is of members present or of all voting members. Of all 40 members: 27 votes. Of members present: depends on attendance (14 votes if only 21 attend). Action: Before the vote, decide whether 2/3 means of members present or of all voting members.",
+      "UNCLEAR: Committee review (Section 3.3). Finance Committee must review this by Oct 9 (3 days before the GA on Oct 12). No review is recorded yet. Action: Arrange the Finance Committee review by Oct 9 and record it."
+    ],
+    "draft_warnings": [],
+    "motion": {
+      "title": "Motion to Increase the House Food Budget",
+      "whereas": [
+        "A house food budget increase has been proposed."
+      ],
+      "resolved": [
+        "That the GA approve the proposed increase to the house food budget."
+      ],
+      "proposer": "[PROPOSER]",
+      "seconder": "[SECONDER]"
+    },
+    "agenda": [
+      {
+        "title": "Call to order and quorum check",
+        "minutes": null,
+        "notes": "Confirm at least 21 voting members are present (Section 2.3)."
+      },
+      {
+        "title": "Approval of the agenda",
+        "minutes": null,
+        "notes": ""
+      },
+      {
+        "title": "Approval of previous minutes",
+        "minutes": null,
+        "notes": ""
+      },
+      {
+        "title": "Finance Committee report",
+        "minutes": null,
+        "notes": "Confirm review was completed by October 9 (Section 3.3)."
+      },
+      {
+        "title": "Motion, discussion, and vote",
+        "minutes": null,
+        "notes": "Proposer: [Proposer name]. Seconder: [Seconder name]. Confirm eligibility and seconding (Section 3.1). A two-thirds majority is required; settle whether it counts members present or all voting members before voting (Section 3.3)."
+      },
+      {
+        "title": "Any other business",
+        "minutes": null,
+        "notes": ""
+      },
+      {
+        "title": "Adjournment",
+        "minutes": null,
+        "notes": ""
+      }
+    ],
+    "notice_email": {
+      "subject": "Draft GA notice \u2014 October 12, 2026",
+      "body": "Issues to resolve before the GA: Notice period FAIL (Section 2.2); the October 12 date may need to move to October 14 or later. Quorum, proposer eligibility, a seconder, the vote-threshold basis, and Finance Committee review remain UNCLEAR (Sections 2.3, 3.1, 3.3). The review must be recorded by October 9.\n\nDear members,\n\nThe GA is planned for October 12, 2026, at [Place]. We will consider an increase to the house food budget. The agenda includes a Finance Committee report, the motion, discussion, and a vote. The required vote is a two-thirds majority, but whether that means members present or all voting members must be settled before voting.\n\nMotion to Increase the House Food Budget\nWhereas a house food budget increase has been proposed;\nResolved, that the GA approve the proposed increase to the house food budget.\nProposer: [Proposer name]. Seconder: [Seconder name].\n\nFind the full bylaws at [Bylaws location].\n\n[Your name], on behalf of the officers"
+    }
+  },
+  "handed_to": "Human (review)",
+  "status": "ok",
+  "notes": "Answer copied from a Kylon agent by a human, then checked by code like a live answer: format, quotes word for word, statuses."
+}
