@@ -6,8 +6,15 @@ Checks a proposal against the co-op's bylaws in four steps:
   3. Code decides which rules apply to this proposal.
   4. Code does the math and gives each rule PASS / FAIL / UNCLEAR.
 
-Try it without an API key (uses the saved sample AI answer):
-    .venv/bin/python compliance_agent.py --use-sample
+Three ways to get the AI's answer:
+    live, through Kylon (needs KYLON_API_KEY):
+        .venv/bin/python compliance_agent.py --today 2026-10-07
+    pasted from a Kylon agent (no key needed):
+        .venv/bin/python compliance_agent.py --today 2026-10-07 --print-prompt prompt.txt
+        (paste prompt.txt into the agent, save its reply as answer.json)
+        .venv/bin/python compliance_agent.py --today 2026-10-07 --ai-answer-file answer.json
+    saved sample answer, for tests and practice:
+        .venv/bin/python compliance_agent.py --use-sample
 """
 
 import argparse
@@ -19,9 +26,11 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
+import paste_mode
 from ai_client import ask_claude, model_name
 from date_and_vote_math import (
     check_notice,
+    days_between,
     deadline_before,
     earliest_compliant_ga,
     exceeds_limit,
@@ -38,6 +47,9 @@ EXTRACT_PROMPT = HERE / "prompts" / "extract_rules.md"
 # Rules every proposal must be checked against. If the AI can't find one,
 # we report it as UNCLEAR instead of silently skipping it.
 REQUIRED_KINDS = ["notice_period", "quorum", "who_can_propose", "vote_threshold"]
+
+# The only statuses the spec allows (orchestration/agents/01-bylaws-compliance.md).
+ALLOWED_STATUSES = {"PASS", "FAIL", "UNCLEAR"}
 
 
 # ---------------------------------------------------------------------------
@@ -85,13 +97,39 @@ class Extraction(BaseModel):
 # ---------------------------------------------------------------------------
 # Step 1: AI reads the rules
 # ---------------------------------------------------------------------------
-def extract_with_ai(bylaws_text: str, proposal_text: str) -> Extraction:
-    """Ask Claude to read the bylaws and proposal. Needs ANTHROPIC_API_KEY."""
-    return ask_claude(
-        EXTRACT_PROMPT.read_text(),
-        f"<bylaws>\n{bylaws_text}\n</bylaws>\n\n<proposal>\n{proposal_text}\n</proposal>",
-        Extraction,
+def build_user_message(bylaws_text: str, proposal_text: str, members: int,
+                       today: date, ga_date: date) -> str:
+    """What the AI is given. Live calls and pasted prompts both use this."""
+    return (
+        f"<bylaws>\n{bylaws_text.strip()}\n</bylaws>\n\n"
+        "<facts>\n"
+        "Calculated by code from the inputs, for context only. Don't do any math.\n"
+        f"Today: {today.isoformat()}\n"
+        f"GA date: {ga_date.isoformat()}\n"
+        f"Days from today to the GA: {days_between(today, ga_date)}\n"
+        f"Voting members: {members}\n"
+        "</facts>\n\n"
+        f"<proposal>\n{proposal_text.strip()}\n</proposal>"
     )
+
+
+def extract_with_ai(user_message: str) -> Extraction:
+    """Ask Claude, through Kylon, to read the bylaws and proposal."""
+    return ask_claude(EXTRACT_PROMPT.read_text(), user_message, Extraction)
+
+
+def paste_prompt(bylaws_text: str, proposal_text: str, members: int,
+                 today: date, ga_date: date) -> str:
+    """The full prompt to paste into a Kylon agent, answer format included."""
+    return paste_mode.build_paste_prompt(
+        EXTRACT_PROMPT.read_text(),
+        build_user_message(bylaws_text, proposal_text, members, today, ga_date),
+        Extraction)
+
+
+def load_pasted_extraction(path: Path) -> Extraction:
+    """A Kylon agent's answer, saved to a file by a human. Checked like a live answer."""
+    return paste_mode.parse_pasted_answer(path.read_text(), Extraction)
 
 
 def load_sample_extraction(path: Path = SAMPLE_EXTRACTION) -> Extraction:
@@ -380,17 +418,31 @@ def check_compliance(bylaws_text: str, extraction: Extraction,
 # Putting it together
 # ---------------------------------------------------------------------------
 def run(bylaws_text: str, proposal_text: str, members: int, today: date,
-        ga_date: date, use_sample: bool = False) -> dict:
-    extraction = (load_sample_extraction() if use_sample
-                  else extract_with_ai(bylaws_text, proposal_text))
+        ga_date: date, use_sample: bool = False, answer_file: Path | None = None) -> dict:
+    """Get the AI's answer (sample, pasted, or live), then check it in code."""
+    if use_sample and answer_file:
+        raise ValueError("Choose either --use-sample or an answer file, not both.")
+    if use_sample:
+        extraction, source = load_sample_extraction(), paste_mode.SOURCE_SAMPLE
+    elif answer_file:
+        extraction, source = load_pasted_extraction(answer_file), paste_mode.SOURCE_PASTED
+    else:
+        message = build_user_message(bylaws_text, proposal_text, members, today, ga_date)
+        extraction, source = extract_with_ai(message), paste_mode.SOURCE_API
+
     checks = check_compliance(bylaws_text, extraction, members, today, ga_date)
+    # Last guardrail: whatever happened above, only spec statuses leave this agent.
+    bad = [r["status"] for r in checks["results"] if r["status"] not in ALLOWED_STATUSES]
+    if bad:
+        raise ValueError(f"Statuses not allowed by the spec: {bad}")
     return {
         "proposal": proposal_text,
         "proposal_summary": extraction.proposal.summary,
         "members": members,
         "today": today.isoformat(),
         "ga_date": ga_date.isoformat(),
-        "source": "saved sample AI answer" if use_sample else f"AI via Kylon ({model_name()})",
+        "source": source,
+        "model": model_name() if source == paste_mode.SOURCE_API else None,
         "results": checks["results"],
         "not_applicable": checks["not_applicable"],
     }
@@ -403,12 +455,28 @@ def main() -> None:
     parser.add_argument("--members", type=int, default=40)
     parser.add_argument("--today", type=date.fromisoformat, default=date.today())
     parser.add_argument("--ga", type=date.fromisoformat, default=date(2026, 10, 12))
-    parser.add_argument("--use-sample", action="store_true",
-                        help="Use the saved AI answer instead of calling the API.")
+    answer = parser.add_mutually_exclusive_group()
+    answer.add_argument("--use-sample", action="store_true",
+                        help="Use the saved sample AI answer.")
+    answer.add_argument("--ai-answer-file", type=Path,
+                        help="Use a Kylon agent's JSON answer saved in this file.")
+    answer.add_argument("--print-prompt", type=Path, metavar="FILE",
+                        help="Write the prompt to paste into a Kylon agent, then stop.")
     args = parser.parse_args()
+    bylaws_text = args.bylaws.read_text()
 
-    report = run(args.bylaws.read_text(), args.proposal, args.members,
-                 args.today, args.ga, use_sample=args.use_sample)
+    if args.print_prompt:
+        args.print_prompt.write_text(
+            paste_prompt(bylaws_text, args.proposal, args.members, args.today, args.ga))
+        print(f"Wrote the prompt to {args.print_prompt}. Paste it into your Kylon agent, "
+              f"save its JSON reply to a file, then run again with --ai-answer-file.")
+        return
+
+    try:
+        report = run(bylaws_text, args.proposal, args.members, args.today, args.ga,
+                     use_sample=args.use_sample, answer_file=args.ai_answer_file)
+    except paste_mode.PastedAnswerError as error:
+        raise SystemExit(str(error))
     print(json.dumps(report, indent=2))
 
 
