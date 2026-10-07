@@ -1,0 +1,9 @@
+# Secrets: never commit these
+.env
+
+# Python virtual environment and caches
+.venv/
+__pycache__/
+
+# Run results (may contain co-op data)
+outputs/

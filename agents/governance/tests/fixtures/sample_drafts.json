@@ -1,0 +1,26 @@
+{
+  "_note": "Handwritten example of what the AI should return for the food budget test case. Replace with a real AI answer once an API key is available.",
+  "motion": {
+    "title": "Motion to raise the house food budget by 10%",
+    "whereas": [
+      "the house food budget sets how much the co-op spends on shared food;",
+      "a member has proposed increasing that budget by 10%;"
+    ],
+    "resolved": [
+      "the house food budget is increased by 10%, subject to review by the Finance Committee as required by Section 3.3."
+    ]
+  },
+  "agenda": [
+    {"title": "Call to order", "minutes": 2, "notes": ""},
+    {"title": "Quorum check", "minutes": 3, "notes": "At least 21 of 40 members must be present (Section 2.3)."},
+    {"title": "Approval of the agenda", "minutes": 2, "notes": ""},
+    {"title": "Finance Committee report on the food budget motion", "minutes": 10, "notes": "Required by Section 3.3; the review must be done by Oct 9."},
+    {"title": "Motion to raise the house food budget by 10%", "minutes": 20, "notes": "Needs a two-thirds majority (Section 3.3). Before voting, the GA must decide whether that means two-thirds of members present or of all 40 members."},
+    {"title": "Any other business", "minutes": 10, "notes": ""},
+    {"title": "Adjournment", "minutes": 1, "notes": ""}
+  ],
+  "notice_email": {
+    "subject": "GA on Oct 12: proposal to raise the food budget by 10%",
+    "body": "Hi everyone,\n\nOur next General Assembly is planned for Oct 12. The main item is a proposal to raise the house food budget by 10%.\n\nA few things to know:\n- Our bylaws (Section 2.2) require 7 days' notice, and this notice is going out with only 5 days to spare. The officers may need to move the GA to Oct 14 or later.\n- Because this changes the budget by more than 5%, the Finance Committee must review it by Oct 9 (Section 3.3).\n- The motion needs a two-thirds majority. Section 3.3 doesn't say whether that's two-thirds of members present or of all members, so we'll settle that first.\n- We need at least 21 members present for quorum, so please come!\n\nQuestions? Reply to this email.\n\n[Your name], on behalf of the officers"
+  }
+}
