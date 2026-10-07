@@ -66,6 +66,22 @@
   .add { margin-top: 2px; background: none; border: 1px dashed var(--line); border-radius: 8px; width: 100%; padding: 7px; font: 500 13px Inter, sans-serif; color: var(--accent); cursor: pointer; }
   .add:hover { border-color: var(--accent); background: #fff; }
   .erow input.k { border-left: 4px solid #c26a2e; } .erow input.c { border-left: 4px solid #3a6ea5; } .erow input.o { border-left: 4px solid #2e7d4f; } .erow input.e { border-left: 4px solid #7a4fa0; }
+  .mcard { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: grid; gap: 8px; }
+  .mtop { display: grid; grid-template-columns: 1fr 92px 28px; gap: 6px; align-items: center; }
+  .mtop input { padding: 7px 8px; font-size: 14px; font-weight: 600; border-radius: 8px; }
+  .hrs { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+  .hrs input { width: 48px; font-weight: 400; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .chips .lbl { font-size: 11px; color: var(--muted); width: 56px; }
+  .c { font: 500 12px Inter, sans-serif; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 3px 9px; cursor: pointer; user-select: none; }
+  .c.off { background: var(--fail-bg); color: var(--fail); border-color: #f0b9b4; text-decoration: line-through; }
+  .c.pref { background: var(--pass-bg); color: var(--pass); border-color: #b5dcc3; }
+  .c.pref::before { content: "♥ "; } .c.avoid { background: var(--fail-bg); color: var(--fail); border-color: #f0b9b4; } .c.avoid::before { content: "✕ "; }
+  .mnote { padding: 6px 8px; font-size: 12px; border-radius: 8px; }
+  .imp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 14px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
+  .impbtn { margin: 0; font: 600 12px Inter, sans-serif; color: var(--accent); background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  .impbtn:hover { border-color: var(--accent); }
+  .toast { font-size: 12px; color: var(--pass); }
   .foot { color: var(--muted); font-size: 13px; text-align: center; }
 </style>
 </head>
@@ -77,8 +93,12 @@
 </header>
 <main>
   <section class="card form">
-    <label>Members <span class="hint">· notes in plain words, the AI reads them</span></label>
-    <div class="grid mgrid"><span>Name</span><span>Notes</span><span title="Hours done last week">Last wk</span><span></span></div>
+    <div class="imp">
+      <span>Already have a spreadsheet?</span>
+      <label class="impbtn">Import members (CSV)<input type="file" id="impMembers" accept=".csv,.txt,.tsv" hidden></label>
+      <label class="impbtn">Import shifts (CSV)<input type="file" id="impShifts" accept=".csv,.txt,.tsv" hidden></label>
+    </div>
+    <label>Members <span class="hint">· click the days they can't do and what they like</span></label>
     <div id="memberRows"></div>
     <button class="add" type="button" id="addMember">+ Add member</button>
 
@@ -109,10 +129,15 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const CATS = ["kitchen", "cleaning", "outdoor", "errands"];
+// [name, days off, prefers, avoids, last week hours, free note for the AI]
 const MEMBERS = [
-  ["Maya", "can't do Thursdays, prefers kitchen", 4], ["Leo", "busy on Monday and Tuesday, hates bathrooms", 2],
-  ["Priya", "away this weekend, likes cleaning", 4], ["Sam", "no Wednesdays", 1],
-  ["Noah", "happy to do anything", 4], ["Ava", "can't do Fridays or weekends, loves cooking", 3],
+  ["Maya", ["Thu"], ["kitchen"], [], 4, ""],
+  ["Leo", ["Mon", "Tue"], [], [], 2, "hates bathrooms"],
+  ["Priya", [], ["cleaning"], [], 4, "away this weekend"],
+  ["Sam", ["Wed"], [], [], 1, ""],
+  ["Noah", [], [], [], 4, "happy to do anything"],
+  ["Ava", ["Fri", "Sat", "Sun"], ["kitchen"], [], 3, ""],
 ];
 const SHIFTS = [
   ["Cook dinner", "Mon", 3], ["Dishes after dinner", "Mon", 1], ["Clean bathrooms", "Tue", 2], ["Cook dinner", "Wed", 3],
@@ -127,9 +152,19 @@ function catClass(t) {
   if (/grocer|shopping|errand|pickup|delivery/.test(t)) return "e";
   return "";
 }
-function memberRow([n, notes, done] = ["", "", ""]) {
-  const r = document.createElement("div"); r.className = "erow m";
-  r.innerHTML = `<input placeholder="Name" value="${esc(n)}" aria-label="Name"><input placeholder="e.g. can't do Thursdays, prefers kitchen" value="${esc(notes)}" aria-label="Notes"><input type="number" min="0" step="0.5" value="${done}" aria-label="Hours done last week"><button class="del" type="button" aria-label="Remove">×</button>`;
+function memberRow([n, off, pref, avoid, done, note] = ["", [], [], [], "", ""]) {
+  const r = document.createElement("div"); r.className = "mcard";
+  r.innerHTML = `<div class="mtop"><input placeholder="Name" value="${esc(n)}" aria-label="Name">
+      <span class="hrs" title="Hours done last week">last wk <input type="number" min="0" step="0.5" value="${done}" aria-label="Hours done last week">h</span>
+      <button class="del" type="button" aria-label="Remove">×</button></div>
+    <div class="chips"><span class="lbl">Can't do</span>${DAYS.map((d) => `<span class="c day${off.includes(d) ? " off" : ""}" data-v="${d}" role="button" tabindex="0">${d}</span>`).join("")}</div>
+    <div class="chips"><span class="lbl">Likes</span>${CATS.map((c) => `<span class="c cat${pref.includes(c) ? " pref" : avoid.includes(c) ? " avoid" : ""}" data-v="${c}" role="button" tabindex="0" title="Click: likes, again: avoids, again: neutral">${c}</span>`).join("")}</div>
+    <input class="mnote" placeholder="Anything else? e.g. away Oct 20, exams next week" value="${esc(note)}" aria-label="Other notes">`;
+  r.querySelectorAll(".c.day").forEach((c) => { c.onclick = () => c.classList.toggle("off"); c.onkeydown = (e) => e.key === "Enter" && c.click(); });
+  r.querySelectorAll(".c.cat").forEach((c) => {
+    c.onclick = () => { if (c.classList.contains("pref")) { c.classList.replace("pref", "avoid"); } else if (c.classList.contains("avoid")) { c.classList.remove("avoid"); } else c.classList.add("pref"); };
+    c.onkeydown = (e) => e.key === "Enter" && c.click();
+  });
   r.querySelector(".del").onclick = () => r.remove();
   $("memberRows").appendChild(r); return r;
 }
@@ -144,9 +179,34 @@ MEMBERS.forEach(memberRow); SHIFTS.forEach(shiftRow);
 $("addMember").onclick = () => memberRow().querySelector("input").focus();
 $("addShift").onclick = () => shiftRow().querySelector("input").focus();
 function membersText() {
-  return [...document.querySelectorAll("#memberRows .erow")].map((r) => { const [n, notes, d] = r.querySelectorAll("input");
-    return n.value.trim() ? `${n.value.trim()}: ${notes.value.trim()}${d.value !== "" ? ` | done ${d.value}` : ""}` : null; }).filter(Boolean).join("\n");
+  return [...document.querySelectorAll("#memberRows .mcard")].map((r) => {
+    const name = r.querySelector(".mtop input").value.trim(); if (!name) return null;
+    const done = r.querySelector(".hrs input").value;
+    const off = [...r.querySelectorAll(".c.day.off")].map((c) => c.dataset.v);
+    const pref = [...r.querySelectorAll(".c.cat.pref")].map((c) => c.dataset.v);
+    const avoid = [...r.querySelectorAll(".c.cat.avoid")].map((c) => c.dataset.v);
+    const parts = [];
+    if (off.length) parts.push("can't do " + off.join(" and "));
+    if (pref.length) parts.push("prefers " + pref.join(" and "));
+    if (avoid.length) parts.push("hates " + avoid.join(" and "));
+    const note = r.querySelector(".mnote").value.trim(); if (note) parts.push(note);
+    return `${name}: ${parts.join(", ")}${done !== "" ? ` | done ${done}` : ""}`;
+  }).filter(Boolean).join("\n");
 }
+// CSV import (Excel: File > Save As > CSV). Members: name, last week hours, notes. Shifts: task, day, hours.
+function parseCsv(text) {
+  const sep = text.includes("\t") ? "\t" : (text.split(";").length > text.split(",").length ? ";" : ",");
+  return text.split(/\r?\n/).map((l) => l.split(sep).map((x) => x.trim().replace(/^"|"$/g, ""))).filter((r) => r.some(Boolean));
+}
+const isHeader = (row) => /name|task|member|shift/i.test(row[0] || "");
+function importFile(input, onRows) {
+  input.onchange = async () => { const f = input.files[0]; if (!f) return; const rows = parseCsv(await f.text()); if (rows.length && isHeader(rows[0])) rows.shift(); onRows(rows); input.value = ""; };
+}
+importFile($("impMembers"), (rows) => { $("memberRows").innerHTML = ""; rows.forEach((c) => memberRow([c[0], [], [], [], c[1] || "", c.slice(2).join(", ")])); });
+importFile($("impShifts"), (rows) => {
+  $("shiftRows").innerHTML = "";
+  rows.forEach((c) => { const d = DAYS.find((x) => (c[1] || "").toLowerCase().startsWith(x.toLowerCase())) || "Mon"; shiftRow([c[0], d, Number(c[2]) || 1]); });
+});
 function shiftsText() {
   return [...document.querySelectorAll("#shiftRows .erow")].map((r) => { const t = r.querySelector("input"), d = r.querySelector("select"), h = r.querySelectorAll("input")[1];
     return t.value.trim() ? `${t.value.trim()} | ${d.value} | ${h.value || 1}` : null; }).filter(Boolean).join("\n");
