@@ -54,6 +54,18 @@
   .log .agent { font-weight: 600; }
   .log .meta { font-size: 12px; color: var(--muted); }
   .err { color: var(--fail); }
+  .quick { margin-top: 8px; font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .chip { font: 500 12px Inter, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; cursor: pointer; color: var(--ink); }
+  .chip:hover { border-color: var(--accent); }
+  .steps { display: grid; gap: 12px; }
+  .stepline { display: flex; gap: 12px; align-items: center; font-weight: 500; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; }
+  .stepline.active .dot { background: var(--accent); animation: pulse 1s infinite; }
+  .stepline.done .dot { background: var(--pass); }
+  .stepline.waiting { color: var(--muted); }
+  .stepline small { color: var(--muted); font-weight: 400; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .banner { background: var(--unc-bg); color: var(--unc); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
 </style>
@@ -72,6 +84,7 @@
       <div><label for="members">Voting members</label><input id="members" type="number" value="40" /></div>
       <div><label for="ga">Next GA date</label><input id="ga" type="date" /></div>
     </div>
+    <div class="quick">Quick dates: <button class="chip" type="button" data-days="10">GA in 10 days</button><button class="chip" type="button" data-days="5">GA in 5 days</button></div>
     <label for="house">House name (optional)</label>
     <input id="house" placeholder="e.g. Casa Zimbabwe" />
 
@@ -92,7 +105,9 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const d = new Date(); d.setDate(d.getDate() + 10); $("ga").value = d.toISOString().slice(0, 10);
+function setGa(days) { const d = new Date(); d.setDate(d.getDate() + days); $("ga").value = d.toISOString().slice(0, 10); }
+setGa(10);
+document.querySelectorAll(".chip[data-days]").forEach((b) => b.onclick = () => setGa(Number(b.dataset.days)));
 
 async function loadSample() { $("bylaws").value = await (await fetch("/sample-bylaws.txt")).text(); }
 $("sample").onclick = loadSample;
@@ -105,17 +120,48 @@ fetch("/api/status").then((r) => r.json()).then((s) => {
 
 function copyBtn(id) { return `<button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('${id}').innerText);this.textContent='Copied'">Copy</button>`; }
 
+const STEPS = [
+  { key: "compliance", label: "Bylaws & Compliance agent", doing: "reading the bylaws and checking each rule" },
+  { key: "governance", label: "Governance agent", doing: "drafting the motion, GA agenda and notice email" },
+  { key: "human", label: "Orchestrator", doing: "handing everything to a human for review" },
+];
+function showSteps(current, notes = {}) {
+  $("out").innerHTML = `<div class="card"><h2>Your AI team is working</h2><div class="steps">${STEPS.map((st, i) => {
+    const cls = i < current ? "done" : i === current ? "active" : "waiting";
+    const txt = i < current ? (notes[st.key] || "done") : i === current ? st.doing + "…" : "waiting";
+    return `<div class="stepline ${cls}"><span class="dot"></span><span>${st.label} <small>· ${esc(txt)}</small></span></div>`;
+  }).join("")}</div></div>`;
+}
+async function post(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const r = await res.json();
+  if (r.error) throw new Error(r.error);
+  return r;
+}
+
 $("run").onclick = async () => {
   const btn = $("run"); btn.disabled = true; btn.textContent = "Agents working…";
+  const input = {
+    proposal: $("proposal").value, memberCount: $("members").value, gaDate: $("ga").value,
+    houseName: $("house").value, bylaws: $("bylaws").value, mode: $("mode").value,
+    today: new Date().toISOString().slice(0, 10),
+  };
   try {
-    const res = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
-      proposal: $("proposal").value, memberCount: $("members").value, gaDate: $("ga").value,
-      houseName: $("house").value, bylaws: $("bylaws").value, mode: $("mode").value,
-      today: new Date().toISOString().slice(0, 10),
-    }) });
-    const r = await res.json();
-    if (r.error) throw new Error(r.error);
-    render(r);
+    showSteps(0);
+    const c = await post("/api/compliance", input);
+    const notes = { compliance: c.result.map((x) => x.status).filter((x) => x === "FAIL").length + " FAIL found" };
+    showSteps(1, notes);
+    const g = await post("/api/governance", { ...input, checks: c.result });
+    notes.governance = "motion, agenda and email drafted";
+    showSteps(2, notes);
+    await new Promise((r) => setTimeout(r, 400));
+    const fallback = c.fallback || g.fallback;
+    render({
+      mode: c.mode === "live" && g.mode === "live" ? "live" : "mock",
+      fallback,
+      checks: c.result, ...g.result,
+      log: [c.log, g.log, { agent: "Orchestrator", action: "Handed results to a human for review", ms: 0, summary: "Nothing is sent automatically. A human decides." }],
+    });
   } catch (e) { $("out").innerHTML = `<div class="card err">Error: ${esc(e.message)}</div>`; }
   btn.disabled = false; btn.textContent = "Check and draft";
 };
@@ -125,6 +171,7 @@ function render(r) {
   r.checks.forEach((c) => counts[c.status] = (counts[c.status] || 0) + 1);
   const m = r.motion;
   $("out").innerHTML = `<div class="results">
+    ${r.fallback ? `<div class="banner">Live AI was unavailable, the demo agents were used instead.</div>` : ""}
     <div class="card">
       <h2>Bylaw check</h2>
       <div class="summary">${["FAIL", "UNCLEAR", "PASS"].map((s) => `<span class="pill ${s}">${counts[s] || 0} ${s}</span>`).join("")}</div>

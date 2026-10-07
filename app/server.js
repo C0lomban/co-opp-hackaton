@@ -13,7 +13,7 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-const { runPipeline, liveAvailable } = require("./agents");
+const { runPipeline, runAgent, liveAvailable } = require("./agents");
 const PORT = process.env.PORT || 3000;
 const ROOT = path.join(__dirname, "public");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".txt": "text/plain" };
@@ -27,6 +27,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/sample-bylaws.txt") {
       res.writeHead(200, { "content-type": "text/plain" });
       return res.end(fs.readFileSync(path.join(__dirname, "..", "docs", "sample-bylaws.txt")));
+    }
+    if (req.method === "POST" && (req.url === "/api/compliance" || req.url === "/api/governance")) {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const data = JSON.parse(body);
+      const out = await runAgent(req.url.slice(5), data, data.checks);
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify(out));
     }
     if (req.method === "POST" && req.url === "/api/run") {
       let body = "";

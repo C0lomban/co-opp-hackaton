@@ -268,38 +268,66 @@ async function liveGovernance(input, checks) {
 
 // ---------- pipeline (simple orchestrator + evidence log) ----------
 
-async function runPipeline(raw) {
-  const input = {
+function normalizeInput(raw) {
+  return {
     bylaws: raw.bylaws || "",
     memberCount: Number(raw.memberCount) || 0,
     gaDate: raw.gaDate,
     proposal: raw.proposal || "",
     houseName: raw.houseName || "",
     today: raw.today || new Date().toISOString().slice(0, 10),
+    mode: raw.mode === "live" && API_KEY() ? "live" : "mock",
   };
-  const mode = raw.mode === "live" && API_KEY() ? "live" : "mock";
-  const log = [];
-
-  const step = async (agent, action, fn) => {
-    const t0 = Date.now();
-    const result = await fn();
-    log.push({ agent, action, ms: Date.now() - t0, at: new Date().toISOString(), mode });
-    return result;
-  };
-
-  const checks = await step("Bylaws & Compliance agent", "Checked the proposal against the bylaws", () =>
-    mode === "live" ? liveCompliance(input) : mockCompliance(input)
-  );
-  log[log.length - 1].summary = checks.map((c) => `${c.rule}: ${c.status}`).join(" · ");
-
-  const docs = await step("Governance agent", "Drafted motion, GA agenda and notice email", () =>
-    mode === "live" ? liveGovernance(input, checks) : mockGovernance(input, checks)
-  );
-  log[log.length - 1].summary = `Motion "${docs.motion.title}", ${docs.agenda.length} agenda items, notice email`;
-
-  log.push({ agent: "Orchestrator", action: "Handed results to a human for review", ms: 0, at: new Date().toISOString(), mode, summary: "Nothing is sent automatically. A human decides." });
-
-  return { mode, checks, ...docs, log };
 }
 
-module.exports = { runPipeline, parseBylaws, liveAvailable: () => !!API_KEY() };
+const AGENTS = {
+  compliance: {
+    name: "Bylaws & Compliance agent",
+    action: "Checked the proposal against the bylaws",
+    live: (input) => liveCompliance(input),
+    mock: (input) => mockCompliance(input),
+    summary: (checks) => checks.map((c) => `${c.rule}: ${c.status}`).join(" · "),
+  },
+  governance: {
+    name: "Governance agent",
+    action: "Drafted motion, GA agenda and notice email",
+    live: (input, checks) => liveGovernance(input, checks),
+    mock: (input, checks) => mockGovernance(input, checks),
+    summary: (d) => `Motion "${d.motion.title}", ${d.agenda.length} agenda items, notice email`,
+  },
+};
+
+// Runs one agent. If the live AI fails, falls back to the demo agent so the
+// app never breaks in front of an audience; the fallback is recorded in the log.
+async function runAgent(key, raw, checks) {
+  const input = normalizeInput(raw);
+  const agent = AGENTS[key];
+  const t0 = Date.now();
+  let result, mode = input.mode, fallback = null;
+  if (mode === "live") {
+    try {
+      result = await agent.live(input, checks);
+    } catch (e) {
+      fallback = e.message.slice(0, 200);
+      mode = "mock";
+    }
+  }
+  if (mode === "mock") result = agent.mock(input, checks);
+  const log = {
+    agent: agent.name, action: agent.action, ms: Date.now() - t0, at: new Date().toISOString(), mode,
+    summary: agent.summary(result) + (fallback ? ` · Live AI failed (${fallback}), used demo agent` : ""),
+  };
+  return { result, log, mode, fallback };
+}
+
+async function runPipeline(raw) {
+  const c = await runAgent("compliance", raw);
+  const g = await runAgent("governance", raw, c.result);
+  const log = [c.log, g.log, {
+    agent: "Orchestrator", action: "Handed results to a human for review", ms: 0,
+    at: new Date().toISOString(), mode: g.mode, summary: "Nothing is sent automatically. A human decides.",
+  }];
+  return { mode: c.mode === "live" && g.mode === "live" ? "live" : "mock", checks: c.result, ...g.result, log };
+}
+
+module.exports = { runPipeline, runAgent, parseBylaws, liveAvailable: () => !!API_KEY() };
