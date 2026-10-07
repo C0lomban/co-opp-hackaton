@@ -55,6 +55,17 @@
   .banner { background: var(--unc-bg); color: var(--unc); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
   .log { padding: 0; } .log li { margin-bottom: 8px; list-style: none; } .log .meta { font-size: 12px; color: var(--muted); }
   .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .grid { display: grid; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .mgrid { grid-template-columns: 90px 1fr 56px 28px; } .sgrid { grid-template-columns: 1fr 74px 56px 28px; }
+  .erow { display: grid; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .erow input, .erow select { padding: 7px 8px; font-size: 13px; border-radius: 8px; }
+  .erow.m { grid-template-columns: 90px 1fr 56px 28px; } .erow.s { grid-template-columns: 1fr 74px 56px 28px; }
+  .erow .cat { width: 4px; height: 100%; border-radius: 4px; }
+  .del { border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 6px; height: 32px; }
+  .del:hover { background: var(--fail-bg); color: var(--fail); }
+  .add { margin-top: 2px; background: none; border: 1px dashed var(--line); border-radius: 8px; width: 100%; padding: 7px; font: 500 13px Inter, sans-serif; color: var(--accent); cursor: pointer; }
+  .add:hover { border-color: var(--accent); background: #fff; }
+  .erow input.k { border-left: 4px solid #c26a2e; } .erow input.c { border-left: 4px solid #3a6ea5; } .erow input.o { border-left: 4px solid #2e7d4f; } .erow input.e { border-left: 4px solid #7a4fa0; }
   .foot { color: var(--muted); font-size: 13px; text-align: center; }
 </style>
 </head>
@@ -66,27 +77,15 @@
 </header>
 <main>
   <section class="card form">
-    <label for="members">Members and their notes <span class="hint">· one per line · "Name: notes | done Xh last week"</span></label>
-    <textarea id="members" rows="7">Maya: can't do Thursdays, prefers kitchen | done 4
-Leo: busy on Monday and Tuesday, hates bathrooms | done 2
-Priya: away this weekend, likes cleaning | done 4
-Sam: no Wednesdays | done 1
-Noah: happy to do anything | done 4
-Ava: can't do Fridays or weekends, loves cooking | done 3</textarea>
+    <label>Members <span class="hint">· notes in plain words, the AI reads them</span></label>
+    <div class="grid mgrid"><span>Name</span><span>Notes</span><span title="Hours done last week">Last wk</span><span></span></div>
+    <div id="memberRows"></div>
+    <button class="add" type="button" id="addMember">+ Add member</button>
 
-    <label for="shifts">Shifts this week <span class="hint">· "Task | Day | Hours"</span></label>
-    <textarea id="shifts" rows="8">Cook dinner | Mon | 3
-Dishes after dinner | Mon | 1
-Clean bathrooms | Tue | 2
-Cook dinner | Wed | 3
-Dishes after dinner | Wed | 1
-Sweep and mop common room | Thu | 2
-Trash and recycling | Thu | 1
-Cook dinner | Fri | 3
-Dishes after dinner | Fri | 1
-Groceries pickup | Sat | 2
-Garden and porch | Sat | 2
-Deep clean kitchen | Sun | 3</textarea>
+    <label>Shifts this week</label>
+    <div class="grid sgrid"><span>Task</span><span>Day</span><span>Hours</span><span></span></div>
+    <div id="shiftRows"></div>
+    <button class="add" type="button" id="addShift">+ Add shift</button>
 
     <div class="row">
       <div><label for="target">Hours per member</label><input id="target" type="number" value="4" min="1" /></div>
@@ -109,6 +108,49 @@ Deep clean kitchen | Sun | 3</textarea>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const MEMBERS = [
+  ["Maya", "can't do Thursdays, prefers kitchen", 4], ["Leo", "busy on Monday and Tuesday, hates bathrooms", 2],
+  ["Priya", "away this weekend, likes cleaning", 4], ["Sam", "no Wednesdays", 1],
+  ["Noah", "happy to do anything", 4], ["Ava", "can't do Fridays or weekends, loves cooking", 3],
+];
+const SHIFTS = [
+  ["Cook dinner", "Mon", 3], ["Dishes after dinner", "Mon", 1], ["Clean bathrooms", "Tue", 2], ["Cook dinner", "Wed", 3],
+  ["Dishes after dinner", "Wed", 1], ["Sweep and mop common room", "Thu", 2], ["Trash and recycling", "Thu", 1],
+  ["Cook dinner", "Fri", 3], ["Dishes after dinner", "Fri", 1], ["Groceries pickup", "Sat", 2], ["Garden and porch", "Sat", 2], ["Deep clean kitchen", "Sun", 3],
+];
+function catClass(t) {
+  t = t.toLowerCase();
+  if (/kitchen|dish|cook|dinner|lunch|breakfast|food|pots/.test(t)) return "k";
+  if (/clean|bathroom|sweep|mop|vacuum|trash|recycl|compost/.test(t)) return "c";
+  if (/garden|yard|outdoor|outside|porch/.test(t)) return "o";
+  if (/grocer|shopping|errand|pickup|delivery/.test(t)) return "e";
+  return "";
+}
+function memberRow([n, notes, done] = ["", "", ""]) {
+  const r = document.createElement("div"); r.className = "erow m";
+  r.innerHTML = `<input placeholder="Name" value="${esc(n)}" aria-label="Name"><input placeholder="e.g. can't do Thursdays, prefers kitchen" value="${esc(notes)}" aria-label="Notes"><input type="number" min="0" step="0.5" value="${done}" aria-label="Hours done last week"><button class="del" type="button" aria-label="Remove">×</button>`;
+  r.querySelector(".del").onclick = () => r.remove();
+  $("memberRows").appendChild(r); return r;
+}
+function shiftRow([t, d, h] = ["", "Mon", 1]) {
+  const r = document.createElement("div"); r.className = "erow s";
+  r.innerHTML = `<input placeholder="Task" value="${esc(t)}" class="${catClass(t)}" aria-label="Task"><select aria-label="Day">${DAYS.map((x) => `<option${x === d ? " selected" : ""}>${x}</option>`).join("")}</select><input type="number" min="0.5" step="0.5" value="${h}" aria-label="Hours"><button class="del" type="button" aria-label="Remove">×</button>`;
+  const inp = r.querySelector("input"); inp.oninput = () => inp.className = catClass(inp.value);
+  r.querySelector(".del").onclick = () => r.remove();
+  $("shiftRows").appendChild(r); return r;
+}
+MEMBERS.forEach(memberRow); SHIFTS.forEach(shiftRow);
+$("addMember").onclick = () => memberRow().querySelector("input").focus();
+$("addShift").onclick = () => shiftRow().querySelector("input").focus();
+function membersText() {
+  return [...document.querySelectorAll("#memberRows .erow")].map((r) => { const [n, notes, d] = r.querySelectorAll("input");
+    return n.value.trim() ? `${n.value.trim()}: ${notes.value.trim()}${d.value !== "" ? ` | done ${d.value}` : ""}` : null; }).filter(Boolean).join("\n");
+}
+function shiftsText() {
+  return [...document.querySelectorAll("#shiftRows .erow")].map((r) => { const t = r.querySelector("input"), d = r.querySelector("select"), h = r.querySelectorAll("input")[1];
+    return t.value.trim() ? `${t.value.trim()} | ${d.value} | ${h.value || 1}` : null; }).filter(Boolean).join("\n");
+}
 (function () { const d = new Date(); const add = (8 - d.getDay()) % 7 || 7; d.setDate(d.getDate() + add); $("week").value = d.toISOString().slice(0, 10); })();
 
 fetch("/api/status").then((r) => r.json()).then((s) => {
@@ -131,7 +173,7 @@ $("run").onclick = async () => {
   let i = 0; showSteps(0); const timer = setInterval(() => { if (i < 2) showSteps(++i); }, 700);
   try {
     const res = await fetch("/api/workshift", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
-      members: $("members").value, shifts: $("shifts").value, targetHours: $("target").value,
+      members: membersText(), shifts: shiftsText(), targetHours: $("target").value,
       weekOf: $("week").value, houseName: $("house").value, mode: $("mode").value,
     }) });
     const r = await res.json();
