@@ -30,8 +30,9 @@ HERE = Path(__file__).resolve().parent
 DRAFT_PROMPT = HERE / "prompts" / "draft_documents.md"
 SAMPLE_DRAFTS = HERE / "tests" / "fixtures" / "sample_drafts.json"
 
-PROPOSER = "[Proposer name]"
-SECONDER = "[Seconder name]"
+# Exact placeholders the team's validation (Prelint) looks for.
+PROPOSER = "[PROPOSER]"
+SECONDER = "[SECONDER]"
 
 
 # ---------------------------------------------------------------------------
@@ -86,12 +87,13 @@ def load_sample_drafts(path: Path = SAMPLE_DRAFTS) -> Drafts:
 def before_you_send(report: dict) -> list[str]:
     """Every FAIL and UNCLEAR from the compliance report, FAILs first."""
     order = {"FAIL": 0, "UNCLEAR": 1}
-    problems = [r for r in report["results"] if r["verdict"] in order]
-    problems.sort(key=lambda r: order[r["verdict"]])
+    problems = [r for r in report["results"] if r["status"] in order]
+    problems.sort(key=lambda r: order[r["status"]])
     return [
-        f"{r['verdict']}: {r['rule']}"
-        + (f" ({r['bylaw_section']})" if r["bylaw_section"] else "")
-        + f". {r['explanation']}"
+        f"{r['status']}: {r['rule']}"
+        + (f" ({r['section']})" if r["section"] else "")
+        + f". {r['reasoning']}"
+        + (f" Action: {r['action_needed']}" if r["action_needed"] else "")
         for r in problems
     ]
 
@@ -105,7 +107,8 @@ def _all_text(drafts: Drafts) -> str:
 
 def unchecked_sections(drafts: Drafts, report: dict) -> list[str]:
     """Bylaw sections the drafts mention that the compliance report doesn't."""
-    known = {r["bylaw_section"] for r in report["results"] if r["bylaw_section"]}
+    checked = report["results"] + report.get("not_applicable", [])
+    known = {r["section"] for r in checked if r["section"]}
     mentioned = {f"Section {n}" for n in re.findall(r"Section (\d+(?:\.\d+)*)", _all_text(drafts))}
     return sorted(mentioned - known)
 

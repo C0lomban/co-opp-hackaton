@@ -19,7 +19,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
-from ai_client import MODEL, ask_claude
+from ai_client import ask_claude, model_name
 from date_and_vote_math import (
     check_notice,
     deadline_before,
@@ -144,6 +144,13 @@ def pick_vote_threshold(rules: list[Rule], facts: ProposalFacts) -> Optional[Rul
 
 # ---------------------------------------------------------------------------
 # Step 4: math and verdicts
+#
+# Every result has the fields from the team spec (orchestration/agents/):
+#   rule, status, section, quote, reasoning, action_needed
+# plus "computed", the raw numbers, so anyone can check the math.
+# status is only ever PASS, FAIL or UNCLEAR, as the spec requires. Rules
+# that exist but don't cover this proposal are kept out of the results and
+# listed separately under "not_applicable", so nothing disappears silently.
 # ---------------------------------------------------------------------------
 LABELS = {
     "notice_period": "Notice period",
@@ -154,14 +161,23 @@ LABELS = {
     "committee_review": "Committee review",
 }
 
+# Numbers the math needs. If the AI couldn't read one, the rule is UNCLEAR.
+NEEDED_NUMBERS = {
+    "notice_period": ["days"],
+    "quorum": ["percent"],
+    "committee_review": ["days"],
+}
 
-def _result(rule: Rule, verdict: str, explanation: str, computed: dict | None = None) -> dict:
+
+def _result(rule: Rule, status: str, reasoning: str,
+            action_needed: Optional[str] = None, computed: dict | None = None) -> dict:
     return {
         "rule": LABELS[rule.kind],
-        "verdict": verdict,
-        "bylaw_section": rule.section,
+        "status": status,
+        "section": rule.section,
         "quote": rule.quote,
-        "explanation": explanation,
+        "reasoning": reasoning,
+        "action_needed": action_needed,
         "computed": computed or {},
     }
 
@@ -170,36 +186,51 @@ def _fmt(d: date) -> str:
     return d.strftime("%b %-d")  # e.g. "Oct 9"
 
 
-def judge_rule(rule: Rule, members: int, today: date, ga_date: date) -> dict:
-    """Give one rule its verdict. All numbers come from date_and_vote_math."""
+def judge_rule(rule: Rule, members: int, today: date, ga_date: date,
+               quorum_needed: Optional[int] = None) -> dict:
+    """Give one rule its status. All numbers come from date_and_vote_math."""
+    missing = [f for f in NEEDED_NUMBERS.get(rule.kind, []) if getattr(rule, f) is None]
+    if missing:
+        return _result(rule, "UNCLEAR",
+            "The AI couldn't read the number this rule needs from the section.",
+            f"Read {rule.section} and check this rule by hand.")
+
     if rule.kind == "notice_period":
         n = check_notice(today, ga_date, rule.days)
         earliest = earliest_compliant_ga(today, rule.days)
-        computed = {**n, "earliest_compliant_ga": earliest.isoformat()}
-        computed.pop("passes")
+        send_by = deadline_before(ga_date, rule.days)
+        computed = {"days_available": n["days_available"], "days_required": rule.days,
+                    "notice_deadline": send_by.isoformat(),
+                    "earliest_compliant_ga": earliest.isoformat()}
         if n["passes"]:
             return _result(rule, "PASS",
-                f"Needs {rule.days} days' notice; {n['days_available']} days remain "
-                f"before the GA on {_fmt(ga_date)}. Send the notice today.", computed)
+                f"Needs {rule.days} days' notice. Today is {_fmt(today)} and the GA is "
+                f"{_fmt(ga_date)}, so {n['days_available']} days are available.",
+                f"Send the written agenda to all members by {_fmt(send_by)}.", computed)
         return _result(rule, "FAIL",
             f"Needs {rule.days} days' notice. Today is {_fmt(today)} and the GA is "
-            f"{_fmt(ga_date)}, so only {n['days_available']} days are available. "
-            f"Earliest GA with proper notice sent today: {_fmt(earliest)}.", computed)
+            f"{_fmt(ga_date)}, so only {n['days_available']} days are available.",
+            f"Move the GA to {_fmt(earliest)} or later, and send the written agenda "
+            f"to all members today.", computed)
 
     if rule.kind == "quorum":
         needed = quorum(members, rule.percent, rule.plus or 0)
         return _result(rule, "UNCLEAR",
-            f"At least {needed} of {members} members must attend. Attendance "
-            f"can only be confirmed at the GA.",
+            f"{rule.percent}% of {members} members"
+            + (f" plus {rule.plus}" if rule.plus else "")
+            + f" = {needed} must attend. Attendance can only be confirmed at the GA.",
+            f"Count voting members present at the GA and confirm at least {needed}.",
             {"members": members, "quorum_needed": needed})
 
     if rule.kind == "who_can_propose":
         return _result(rule, "UNCLEAR",
-            "The bylaws say who may propose. Confirm the proposer meets this.")
+            "The bylaws say who may propose, but no proposer is named yet.",
+            "Name the proposer and confirm they are allowed to propose.")
 
     if rule.kind == "seconder":
         return _result(rule, "UNCLEAR",
-            "A seconder is needed. Name one before the GA.")
+            "A seconder is required, but none is named yet.",
+            "Name a seconder before the motion is discussed.")
 
     if rule.kind == "committee_review":
         due = deadline_before(ga_date, rule.days)
@@ -207,19 +238,26 @@ def judge_rule(rule: Rule, members: int, today: date, ga_date: date) -> dict:
         if today > due:
             return _result(rule, "FAIL",
                 f"{rule.committee} review had to happen by {_fmt(due)}, "
-                f"{rule.days} days before the GA. That date has passed.", computed)
+                f"{rule.days} days before the GA. That date has passed.",
+                f"Move the GA so the {rule.committee} can review at least "
+                f"{rule.days} days before it.", computed)
         return _result(rule, "UNCLEAR",
-            f"{rule.committee} must review this by {_fmt(due)} "
-            f"({rule.days} days before the GA on {_fmt(ga_date)}). "
-            f"Confirm the review happens.", computed)
+            f"{rule.committee} must review this by {_fmt(due)} ({rule.days} days "
+            f"before the GA on {_fmt(ga_date)}). No review is recorded yet.",
+            f"Arrange the {rule.committee} review by {_fmt(due)} and record it.", computed)
 
     if rule.kind == "vote_threshold":
-        return _judge_vote_threshold(rule, members)
+        return _judge_vote_threshold(rule, members, quorum_needed)
 
     raise ValueError(f"Unknown rule kind: {rule.kind}")
 
 
-def _judge_vote_threshold(rule: Rule, members: int) -> dict:
+def _judge_vote_threshold(rule: Rule, members: int, quorum_needed: Optional[int]) -> dict:
+    if rule.threshold_type == "fraction" and not (rule.numerator and rule.denominator):
+        return _result(rule, "UNCLEAR",
+            "The AI couldn't read the fraction this rule needs from the section.",
+            f"Read {rule.section} and check this rule by hand.")
+
     def needed(voters: int) -> int:
         if rule.threshold_type == "simple_majority":
             return simple_majority(voters)
@@ -230,94 +268,112 @@ def _judge_vote_threshold(rule: Rule, members: int) -> dict:
 
     if rule.vote_base == "all_voting_members":
         return _result(rule, "PASS",
-            f"Needs {name} of all {members} voting members: {needed(members)} votes.",
-            {"votes_needed": needed(members)})
+            f"Needs {name} of all {members} voting members: {needed(members)} yes votes.",
+            "Record the yes votes at the GA.", {"votes_needed": needed(members)})
 
     if rule.vote_base == "members_present":
         return _result(rule, "PASS",
-            f"Needs {name} of members present at the GA; the exact number "
-            f"depends on attendance.", {})
+            f"Needs {name} of members present; the exact number depends on attendance.",
+            "Record attendance and yes votes at the GA.")
 
-    # The section doesn't say whose votes count. check_compliance fills in
-    # the explanation, because it needs the quorum number too.
-    return _result(rule, "UNCLEAR", "", {"votes_needed_if_all_members": needed(members)})
+    # The section doesn't say whose votes count: show both readings.
+    computed = {"votes_needed_if_all_members": needed(members)}
+    reasoning = (f"{rule.section} requires {name} but does not say whether that is "
+                 f"of members present or of all voting members. "
+                 f"Of all {members} members: {needed(members)} votes.")
+    if quorum_needed:
+        computed["votes_needed_if_quorum_present"] = needed(quorum_needed)
+        reasoning += (f" Of members present: depends on attendance "
+                      f"({needed(quorum_needed)} votes if only {quorum_needed} attend).")
+    return _result(rule, "UNCLEAR", reasoning,
+        f"Before the vote, decide whether {name} means of members present "
+        f"or of all voting members.", computed)
+
+
+def _applies(rule: Rule, facts: ProposalFacts, chosen_threshold: Optional[Rule]) -> Optional[bool]:
+    if rule.kind == "vote_threshold" and rule is not chosen_threshold:
+        # Only one vote threshold applies; the others are not applicable,
+        # unless we couldn't tell (None), which stays UNCLEAR.
+        if rule.applies_to != "ordinary_motions" and rule_applies(rule, facts) is None:
+            return None
+        return False
+    if rule.applies_to == "ordinary_motions":
+        return True
+    return rule_applies(rule, facts)
+
+
+def _not_applicable_reason(rule: Rule, facts: ProposalFacts,
+                           chosen_threshold: Optional[Rule]) -> str:
+    if rule.applies_to == "ordinary_motions" and chosen_threshold is not None:
+        return f"Replaced by the stricter rule in {chosen_threshold.section} for this proposal."
+    if rule.applies_to == "bylaw_change":
+        return "Applies only to changes to the bylaws. This proposal doesn't change the bylaws."
+    if not facts.changes_budget:
+        return "Applies only to budget changes. This proposal doesn't change the budget."
+    return (f"Applies only to budget changes of more than {rule.budget_limit_percent:g}%. "
+            f"This proposal changes the budget by {facts.budget_change_percent:g}%.")
 
 
 def check_compliance(bylaws_text: str, extraction: Extraction,
-                     members: int, today: date, ga_date: date) -> list[dict]:
-    """Turn the AI's extracted rules into the final list of verdicts."""
+                     members: int, today: date, ga_date: date) -> dict:
+    """Turn the AI's extracted rules into the final checks, in bylaw order.
+
+    Returns {"results": [...], "not_applicable": [...]}.
+    """
     facts = extraction.proposal
+
+    # Step 2: only rules whose quote is really in the bylaws are trusted.
+    real = [r for r in extraction.rules if quote_is_real(r.quote, bylaws_text)]
+    chosen_threshold = pick_vote_threshold(real, facts)
+    quorum_rule = next((r for r in real if r.kind == "quorum" and r.percent is not None), None)
+    quorum_needed = quorum(members, quorum_rule.percent, quorum_rule.plus or 0) if quorum_rule else None
+
     results = []
-
-    # Step 2: drop nothing silently. A rule with a fake quote becomes UNCLEAR.
-    real_rules = []
+    not_applicable = []
     for rule in extraction.rules:
-        if quote_is_real(rule.quote, bylaws_text):
-            real_rules.append(rule)
-        else:
+        if not any(rule is r for r in real):
+            # Nothing is dropped silently: a rule with a fake quote becomes UNCLEAR.
             results.append(_result(rule, "UNCLEAR",
-                "The quoted text could not be found in the bylaws, so this "
-                "rule was not checked. A human should read the section."))
-
-    # Step 3: keep only rules that apply to this proposal.
-    chosen_threshold = pick_vote_threshold(real_rules, facts)
-    to_judge = []
-    for rule in real_rules:
-        if rule.kind == "vote_threshold":
-            if rule is chosen_threshold:
-                to_judge.append(rule)
+                "The quoted text could not be found in the bylaws, so this rule "
+                "was not checked.", f"Read {rule.section} and check this rule by hand."))
             continue
-        applies = rule_applies(rule, facts)
-        if applies is None and rule.applies_to != "ordinary_motions":
+
+        # Step 3: does this rule cover this proposal?
+        applies = _applies(rule, facts, chosen_threshold)
+        if applies is None:
             results.append(_result(rule, "UNCLEAR",
-                "Can't tell from the proposal whether this rule applies "
-                "(for example, the size of the budget change isn't stated)."))
-        elif applies or rule.applies_to == "ordinary_motions":
-            to_judge.append(rule)
+                "Can't tell from the proposal whether this rule applies.",
+                "State the size of the budget change in the proposal."))
+            continue
+        if applies is False:
+            not_applicable.append({
+                "rule": LABELS[rule.kind], "section": rule.section, "quote": rule.quote,
+                "reason": _not_applicable_reason(rule, facts, chosen_threshold),
+            })
+            continue
 
-    # Step 4: verdicts.
-    judged = [(rule, judge_rule(rule, members, today, ga_date)) for rule in to_judge]
-    quorum_needed = next((res["computed"]["quorum_needed"]
-                          for rule, res in judged if rule.kind == "quorum"), None)
-
-    for rule, result in judged:
-        if rule.kind == "vote_threshold" and result["verdict"] == "UNCLEAR":
-            # This explanation already covers the ambiguity.
-            _explain_unclear_threshold(result, rule, members, quorum_needed)
-        elif rule.ambiguity:
+        # Step 4: the math.
+        result = judge_rule(rule, members, today, ga_date, quorum_needed)
+        is_unclear_threshold = rule.kind == "vote_threshold" and result["status"] == "UNCLEAR"
+        if rule.ambiguity and not is_unclear_threshold:
             # A rule the AI flagged as ambiguous can't PASS.
-            if result["verdict"] == "PASS":
-                result["verdict"] = "UNCLEAR"
-            result["explanation"] += f" Note: {rule.ambiguity}"
+            if result["status"] == "PASS":
+                result["status"] = "UNCLEAR"
+                result["action_needed"] = f"Read {rule.section} and decide how it applies."
+            result["reasoning"] += f" Note: {rule.ambiguity}"
         results.append(result)
 
     # Required rules the AI couldn't find at all.
-    found = {r.kind for r in real_rules}
+    found = {r.kind for r in real}
     for kind in REQUIRED_KINDS:
         if kind not in found:
             results.append({
-                "rule": LABELS[kind], "verdict": "UNCLEAR", "bylaw_section": None,
-                "quote": None, "computed": {},
-                "explanation": "No rule about this was found in the bylaws. "
-                               "A human should check.",
+                "rule": LABELS[kind], "status": "UNCLEAR", "section": None, "quote": None,
+                "reasoning": "No rule about this was found in the bylaws.",
+                "action_needed": "Check the bylaws for a rule about this.",
+                "computed": {},
             })
-    return results
-
-
-def _explain_unclear_threshold(result: dict, rule: Rule, members: int,
-                               quorum_needed: Optional[int]) -> None:
-    """Fill in both readings so humans can see what's at stake."""
-    frac = f"{rule.numerator}/{rule.denominator}"
-    of_all = votes_needed(members, rule.numerator, rule.denominator)
-    text = (f"{rule.section} requires {frac} but does not say whether that is "
-            f"{frac} of members present or of all voting members. "
-            f"Of all {members} members: {of_all} votes.")
-    if quorum_needed:
-        of_present = votes_needed(quorum_needed, rule.numerator, rule.denominator)
-        text += (f" Of members present: depends on attendance "
-                 f"({of_present} votes if only {quorum_needed} attend).")
-        result["computed"]["votes_needed_if_quorum_present"] = of_present
-    result["explanation"] = text + " The co-op should decide which reading applies."
+    return {"results": results, "not_applicable": not_applicable}
 
 
 # ---------------------------------------------------------------------------
@@ -327,14 +383,16 @@ def run(bylaws_text: str, proposal_text: str, members: int, today: date,
         ga_date: date, use_sample: bool = False) -> dict:
     extraction = (load_sample_extraction() if use_sample
                   else extract_with_ai(bylaws_text, proposal_text))
+    checks = check_compliance(bylaws_text, extraction, members, today, ga_date)
     return {
         "proposal": proposal_text,
         "proposal_summary": extraction.proposal.summary,
         "members": members,
         "today": today.isoformat(),
         "ga_date": ga_date.isoformat(),
-        "source": "saved sample AI answer" if use_sample else f"AI ({MODEL})",
-        "results": check_compliance(bylaws_text, extraction, members, today, ga_date),
+        "source": "saved sample AI answer" if use_sample else f"AI via Kylon ({model_name()})",
+        "results": checks["results"],
+        "not_applicable": checks["not_applicable"],
     }
 
 

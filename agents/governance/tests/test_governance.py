@@ -40,13 +40,20 @@ class FoodBudgetDrafts(unittest.TestCase):
         self.assertTrue(first.startswith("FAIL: Notice period (Section 2.2)"))
 
     def test_every_unclear_rule_is_on_the_checklist(self):
-        unclear = [r for r in self.report["results"] if r["verdict"] == "UNCLEAR"]
+        unclear = [r for r in self.report["results"] if r["status"] == "UNCLEAR"]
         checklist = self.package["before_you_send"]
         self.assertEqual(len(checklist), len(unclear) + 1)  # + the notice FAIL
 
     def test_names_are_placeholders(self):
-        self.assertEqual(self.package["motion"]["proposer"], PROPOSER)
-        self.assertEqual(self.package["motion"]["seconder"], SECONDER)
+        self.assertEqual(self.package["motion"]["proposer"], "[PROPOSER]")
+        self.assertEqual(self.package["motion"]["seconder"], "[SECONDER]")
+        self.assertEqual((PROPOSER, SECONDER), ("[PROPOSER]", "[SECONDER]"))
+
+    def test_checklist_includes_the_action(self):
+        self.assertIn("Action: Move the GA to Oct 14", self.package["before_you_send"][0])
+
+    def test_not_applicable_rules_stay_off_the_checklist(self):
+        self.assertFalse(any("Section 3.4" in x for x in self.package["before_you_send"]))
 
     def test_sample_drafts_only_mention_checked_sections(self):
         self.assertEqual(self.package["draft_warnings"], [])
