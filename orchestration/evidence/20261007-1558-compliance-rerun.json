@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-10-07T15:58:00-07:00",
+  "agent": "Bylaws & Compliance Agent",
+  "tool": "Kylon",
+  "input_summary": "TEST 1 re-run after persona fix: Raise the house food budget by 10%, 40 members, today 2026-10-07, GA 2026-10-17 (test assumption), no proposer/seconder named, docs/sample-bylaws.txt",
+  "output": [
+    {
+      "rule": "who can propose",
+      "status": "UNCLEAR",
+      "section": "Section 3.1",
+      "quote": "Any member may propose a motion.",
+      "reasoning": "Any member may propose, but no proposer is named, so membership cannot be verified.",
+      "action_needed": "Name the proposer and confirm they are a member."
+    },
+    {
+      "rule": "seconder",
+      "status": "UNCLEAR",
+      "section": "Section 3.1",
+      "quote": "A motion needs a seconder to be discussed.",
+      "reasoning": "No seconder is named; the motion has not been shown to meet the condition for discussion.",
+      "action_needed": "Name and record a seconder before discussion."
+    },
+    {
+      "rule": "notice period",
+      "status": "UNCLEAR",
+      "section": "Section 2.2",
+      "quote": "Written notice of the agenda must be sent to all members at least 7 days before a regular GA.",
+      "reasoning": "If the assumed October 17, 2026 GA is regular, October 17 minus 7 calendar days = October 10, 2026, the latest notice date. From October 7 to October 17 is 10 days; the notice deadline is 3 days away. Neither regular-GA status nor sending written notice to all members is documented.",
+      "action_needed": "Confirm the GA is regular; if so, send the written agenda to all members by October 10 and document that it was sent."
+    },
+    {
+      "rule": "quorum",
+      "status": "UNCLEAR",
+      "section": "Section 2.3",
+      "quote": "Quorum is 50 percent of voting members plus one.",
+      "reasoning": "40 voting members x 50% = 20; 20 + 1 = 21 voting members for quorum. Attendance is not known, so quorum cannot yet be verified.",
+      "action_needed": "At the GA, record attendance and confirm at least 21 voting members are present."
+    },
+    {
+      "rule": "vote threshold",
+      "status": "UNCLEAR",
+      "section": "Section 3.3",
+      "quote": "Motions that change the budget by more than 5 percent need a two-thirds majority and must be reviewed by the Finance Committee at least 3 days before the GA.",
+      "reasoning": "A 10% food-budget increase exceeds 5%, so Section 3.3 requires two-thirds rather than the ordinary-motion threshold. It does not say two-thirds of whom. Reading 1, two-thirds of members present: if P voting members are present, required yes votes = ceiling(2P/3); at minimum quorum P = 21, ceiling(42/3) = 14; with all 40 present, ceiling(80/3) = 27. Actual attendance is unknown. Reading 2, two-thirds of all 40 voting members: ceiling(2 x 40/3) = ceiling(26.666...) = 27 yes votes regardless of attendance. At 21 present, the two readings would require 14 versus 27 yes votes. The denominator is ambiguous and no vote has occurred; neither reading has been selected or satisfied.",
+      "action_needed": "Have the humans responsible for governance resolve whether Section 3.3 means members present or all voting members; then record attendance and the vote against that interpretation."
+    },
+    {
+      "rule": "committee review",
+      "status": "UNCLEAR",
+      "section": "Section 3.3",
+      "quote": "Motions that change the budget by more than 5 percent need a two-thirds majority and must be reviewed by the Finance Committee at least 3 days before the GA.",
+      "reasoning": "The 10% budget increase exceeds 5%. October 17 minus 3 calendar days = October 14, 2026, the latest Finance Committee review date. From October 7 to October 14 is 7 days. No completed review is documented.",
+      "action_needed": "Arrange and document Finance Committee review by October 14, 2026."
+    },
+    {
+      "rule": "bylaw change (Section 3.4)",
+      "status": "NOT_APPLICABLE",
+      "section": "Section 3.4",
+      "quote": "Changes to these bylaws need a two-thirds majority of all voting members.",
+      "reasoning": "The proposal changes the house food budget by 10%; it does not propose changing the bylaws. Section 3.4 therefore does not govern this motion.",
+      "action_needed": "None for this proposal."
+    }
+  ],
+  "handed_to": "Governance Agent (NOT SENT: Kylon agents are isolated in private DMs; handoff to go through BAND)",
+  "status": "partial",
+  "notes": "Matches expected-test-1.md: vote threshold UNCLEAR on 'two-thirds of whom?' with both readings computed (14 vs 27), Section 3.4 NOT_APPLICABLE. Replaces the gap noted in 20261007-1549-compliance.json."
+}
