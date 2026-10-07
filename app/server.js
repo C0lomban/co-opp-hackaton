@@ -13,7 +13,8 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-const { runPipeline, runAgent, liveAvailable } = require("./agents");
+const { runPipeline, runAgent, liveAvailable, callClaude } = require("./agents");
+const { runWorkshift } = require("./workshift");
 const PORT = process.env.PORT || 3000;
 const ROOT = path.join(__dirname, "public");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".txt": "text/plain" };
@@ -33,6 +34,13 @@ const server = http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       const data = JSON.parse(body);
       const out = await runAgent(req.url.slice(5), data, data.checks);
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify(out));
+    }
+    if (req.method === "POST" && req.url === "/api/workshift") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const out = await runWorkshift(JSON.parse(body), { callClaude, liveAvailable });
       res.writeHead(200, { "content-type": "application/json" });
       return res.end(JSON.stringify(out));
     }

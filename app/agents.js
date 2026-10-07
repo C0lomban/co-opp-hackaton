@@ -330,4 +330,4 @@ async function runPipeline(raw) {
   return { mode: c.mode === "live" && g.mode === "live" ? "live" : "mock", checks: c.result, ...g.result, log };
 }
 
-module.exports = { runPipeline, runAgent, parseBylaws, liveAvailable: () => !!API_KEY() };
+module.exports = { runPipeline, runAgent, parseBylaws, callClaude, liveAvailable: () => !!API_KEY() };

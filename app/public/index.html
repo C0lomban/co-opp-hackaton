@@ -54,6 +54,8 @@
   .log .agent { font-weight: 600; }
   .log .meta { font-size: 12px; color: var(--muted); }
   .err { color: var(--fail); }
+  .tabs { display: flex; gap: 4px; } .tab { font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  .tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
   .quick { margin-top: 8px; font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .chip { font: 500 12px Inter, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; cursor: pointer; color: var(--ink); }
   .chip:hover { border-color: var(--accent); }
@@ -73,6 +75,7 @@
 <body>
 <header>
   <h1>CoopOS</h1>
+  <nav class="tabs"><a class="tab on" href="index.html">Governance</a><a class="tab" href="workshift.html">Workshifts</a></nav>
   <p>Turn an idea into a bylaw checked motion, a GA agenda and a notice email.</p>
 </header>
 <main>
