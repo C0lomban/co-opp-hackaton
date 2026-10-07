@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CoopOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f6f3ec; --panel: #fffdf8; --ink: #1f2420; --muted: #6b6f68; --line: #e3ded2;
+    --accent: #2f5d50; --accent-ink: #fff;
+    --pass: #2e7d4f; --pass-bg: #e3f2e8; --fail: #b3261e; --fail-bg: #fbe5e3; --unc: #9a6700; --unc-bg: #fdf1d6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  header { padding: 22px 32px; display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); }
+  header h1 { font-family: Fraunces, serif; font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); }
+  main { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 24px; padding: 24px 32px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 16px; flex-direction: column; gap: 4px; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .form { position: sticky; top: 16px; }
+  label { display: block; font-weight: 600; font-size: 13px; margin: 14px 0 6px; }
+  label:first-child { margin-top: 0; }
+  textarea, input, select { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+  textarea { resize: vertical; }
+  #bylaws { min-height: 150px; font-size: 13px; font-family: ui-monospace, monospace; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .link { background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; padding: 0; text-decoration: underline; }
+  .primary { margin-top: 18px; width: 100%; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 12px; font: 600 15px Inter, sans-serif; cursor: pointer; }
+  .primary:disabled { opacity: .6; cursor: wait; }
+  .mode { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .mode select { width: auto; padding: 6px 8px; }
+  .empty { color: var(--muted); text-align: center; padding: 60px 20px; }
+  .results { display: grid; gap: 18px; }
+  h2 { font-family: Fraunces, serif; font-size: 19px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; }
+  .summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .PASS { color: var(--pass); background: var(--pass-bg); } .FAIL { color: var(--fail); background: var(--fail-bg); } .UNCLEAR { color: var(--unc); background: var(--unc-bg); }
+  .check { border-top: 1px solid var(--line); padding: 12px 0; display: grid; grid-template-columns: 90px 1fr; gap: 12px; }
+  .check:first-of-type { border-top: 0; }
+  .check .rule { font-weight: 600; }
+  .check blockquote { margin: 6px 0 0; padding: 6px 10px; border-left: 3px solid var(--line); color: var(--muted); font-size: 13px; }
+  .check .sec { font-size: 12px; color: var(--muted); }
+  .motion h3 { margin: 0 0 8px; font-size: 16px; }
+  .motion p { margin: 4px 0; }
+  .motion .k { font-weight: 600; }
+  ol { margin: 0; padding-left: 20px; }
+  pre { white-space: pre-wrap; font: 14px/1.5 Inter, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 0; }
+  .copy { font-size: 12px; font-family: Inter, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  .log li { margin-bottom: 8px; list-style: none; }
+  .log { padding: 0; }
+  .log .agent { font-weight: 600; }
+  .log .meta { font-size: 12px; color: var(--muted); }
+  .err { color: var(--fail); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>CoopOS</h1>
+  <p>Turn an idea into a bylaw checked motion, a GA agenda and a notice email.</p>
+</header>
+<main>
+  <section class="card form">
+    <label for="proposal">Your proposal, in plain language</label>
+    <textarea id="proposal" rows="3">We want to raise the house food budget by 10%</textarea>
+
+    <div class="row">
+      <div><label for="members">Voting members</label><input id="members" type="number" value="40" /></div>
+      <div><label for="ga">Next GA date</label><input id="ga" type="date" /></div>
+    </div>
+    <label for="house">House name (optional)</label>
+    <input id="house" placeholder="e.g. Casa Zimbabwe" />
+
+    <label for="bylaws">Bylaws <button class="link" id="sample" type="button">load sample bylaws</button></label>
+    <textarea id="bylaws" placeholder="Paste your bylaws here"></textarea>
+    <input type="file" id="file" accept=".txt" style="margin-top:8px;font-size:13px" />
+
+    <div class="mode">Agents:
+      <select id="mode"><option value="mock">Demo (offline)</option><option value="live">Live AI (Claude)</option></select>
+      <span id="liveNote"></span>
+    </div>
+    <button class="primary" id="run">Check and draft</button>
+  </section>
+
+  <section id="out"><div class="card empty">Fill in the form and click <b>Check and draft</b>.<br/>The AI drafts and checks. Humans decide.</div></section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const d = new Date(); d.setDate(d.getDate() + 10); $("ga").value = d.toISOString().slice(0, 10);
+
+async function loadSample() { $("bylaws").value = await (await fetch("/sample-bylaws.txt")).text(); }
+$("sample").onclick = loadSample;
+loadSample();
+$("file").onchange = async (e) => { const f = e.target.files[0]; if (f) $("bylaws").value = await f.text(); };
+
+fetch("/api/status").then((r) => r.json()).then((s) => {
+  if (!s.liveAvailable) { $("mode").querySelector('[value="live"]').disabled = true; $("liveNote").textContent = "(add an API key to enable live)"; }
+});
+
+function copyBtn(id) { return `<button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('${id}').innerText);this.textContent='Copied'">Copy</button>`; }
+
+$("run").onclick = async () => {
+  const btn = $("run"); btn.disabled = true; btn.textContent = "Agents working…";
+  try {
+    const res = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+      proposal: $("proposal").value, memberCount: $("members").value, gaDate: $("ga").value,
+      houseName: $("house").value, bylaws: $("bylaws").value, mode: $("mode").value,
+      today: new Date().toISOString().slice(0, 10),
+    }) });
+    const r = await res.json();
+    if (r.error) throw new Error(r.error);
+    render(r);
+  } catch (e) { $("out").innerHTML = `<div class="card err">Error: ${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.textContent = "Check and draft";
+};
+
+function render(r) {
+  const counts = { PASS: 0, FAIL: 0, UNCLEAR: 0 };
+  r.checks.forEach((c) => counts[c.status] = (counts[c.status] || 0) + 1);
+  const m = r.motion;
+  $("out").innerHTML = `<div class="results">
+    <div class="card">
+      <h2>Bylaw check</h2>
+      <div class="summary">${["FAIL", "UNCLEAR", "PASS"].map((s) => `<span class="pill ${s}">${counts[s] || 0} ${s}</span>`).join("")}</div>
+      ${r.checks.map((c) => `<div class="check">
+        <div><span class="pill ${c.status}">${c.status}</span></div>
+        <div><div class="rule">${esc(c.rule)}</div><div>${esc(c.explanation)}</div>
+        ${c.quote ? `<blockquote>“${esc(c.quote)}”<div class="sec">${esc(c.section)}</div></blockquote>` : ""}</div>
+      </div>`).join("")}
+    </div>
+    <div class="card motion">
+      <h2>Draft motion ${copyBtn("motionText")}</h2>
+      <div id="motionText">
+        <h3>${esc(m.title)}</h3>
+        ${m.whereas.map((w) => `<p><span class="k">Whereas</span> ${esc(w)};</p>`).join("")}
+        ${m.resolved.map((w) => `<p><span class="k">Be it resolved</span> ${esc(w)}.</p>`).join("")}
+        <p><span class="k">Proposed by:</span> ${esc(m.proposer)} · <span class="k">Seconded by:</span> ${esc(m.seconder)}</p>
+        <p><span class="k">Vote required:</span> ${esc(m.voteRequired)}</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>GA agenda ${copyBtn("agendaText")}</h2><ol id="agendaText">${r.agenda.map((a) => `<li>${esc(a)}</li>`).join("")}</ol></div>
+      <div class="card"><h2>Notice email ${copyBtn("emailText")}</h2><pre id="emailText"><b>Subject:</b> ${esc(r.email.subject)}\n\n${esc(r.email.body)}</pre></div>
+    </div>
+    <div class="card"><h2>Agent log <span class="pill" style="background:#eee;color:#555">${r.mode === "live" ? "Live AI" : "Demo mode"}</span></h2>
+      <ul class="log">${r.log.map((l) => `<li><span class="agent">${esc(l.agent)}</span>: ${esc(l.action)}<div class="meta">${esc(l.summary || "")} · ${l.ms} ms</div></li>`).join("")}</ul>
+    </div>
+  </div>`;
+}
+</script>
+</body>
+</html>
