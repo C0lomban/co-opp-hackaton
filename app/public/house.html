@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CoopOS House Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root { --bg:#f6f3ec; --panel:#fffdf8; --ink:#1f2420; --muted:#6b6f68; --line:#e3ded2; --accent:#2f5d50;
+    --pass:#2e7d4f; --pass-bg:#e3f2e8; --fail:#b3261e; --fail-bg:#fbe5e3; --unc:#9a6700; --unc-bg:#fdf1d6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  header { padding: 22px 32px; display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-family: Fraunces, serif; font-size: 26px; margin: 0; } header p { margin: 0; color: var(--muted); }
+  .tabs { display: flex; gap: 4px; } .tab { font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  .tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  main { padding: 24px 32px; display: grid; gap: 18px; max-width: 1300px; }
+  @media (max-width: 900px) { main { padding: 16px; } header { padding: 16px; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  h2 { font-family: Fraunces, serif; font-size: 19px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .drop { border: 2px dashed var(--line); border-radius: 14px; padding: 36px 20px; text-align: center; background: var(--panel); cursor: pointer; transition: .15s; }
+  .drop.over, .drop:hover { border-color: var(--accent); background: #fff; }
+  .drop b { font-size: 17px; } .drop p { color: var(--muted); margin: 6px 0 0; }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .bar select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+  .switch { display: flex; gap: 6px; align-items: center; cursor: pointer; user-select: none; }
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; }
+  @media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .kpi .v { font-family: Fraunces, serif; font-size: 28px; line-height: 1.1; } .kpi .l { font-size: 12px; color: var(--muted); }
+  .kpi.warn .v { color: var(--unc); } .kpi.bad .v { color: var(--fail); } .kpi.good .v { color: var(--pass); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; } @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; border-top: 0; }
+  .pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; display: inline-block; }
+  .ok { color: var(--pass); background: var(--pass-bg); } .under { color: var(--unc); background: var(--unc-bg); } .bad { color: var(--fail); background: var(--fail-bg); }
+  .sug { font-size: 12px; color: var(--muted); } .sug b { color: var(--accent); }
+  .spark { display: inline-flex; gap: 2px; align-items: flex-end; height: 22px; } .spark i { width: 7px; background: var(--pass); border-radius: 2px; display: block; }
+  .spark i.lo { background: var(--unc); } .spark i.zero { background: var(--fail); height: 3px !important; }
+  pre { white-space: pre-wrap; font: 14px/1.5 Inter, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 0; }
+  .copy, .btn { font: 600 12px Inter, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--ink); }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .muted { color: var(--muted); font-size: 13px; } .scroll { max-height: 420px; overflow: auto; }
+  .privacy { font-size: 12px; color: var(--pass); background: var(--pass-bg); border-radius: 999px; padding: 3px 10px; }
+  .day { font-weight: 600; font-size: 12px; color: var(--muted); width: 44px; }
+  .foot { color: var(--muted); font-size: 13px; text-align: center; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CoopOS</h1>
+  <nav class="tabs"><a class="tab" href="index.html">Governance</a><a class="tab" href="workshift.html">Workshifts</a><a class="tab on" href="house.html">House dashboard</a></nav>
+  <p>Drop the house's workshift spreadsheet. See who's behind, what's unclaimed, and get the messages ready.</p>
+</header>
+<main>
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept=".xlsx,.xls" hidden />
+    <b>Drop the house workshift spreadsheet (.xlsx)</b>
+    <p>Works with the BSC workshift template: weekly sign-up tabs, Hour Tracker, workshift rate.<br/>
+    <span class="privacy">🔒 Read in your browser. The file never leaves this computer.</span></p>
+  </label>
+
+  <div id="dash" class="hidden">
+    <div class="card bar">
+      <span id="fname"></span>
+      <span>Week: <select id="week"></select></span>
+      <label class="switch"><input type="checkbox" id="anon" checked /> Anonymize names (for demos)</label>
+      <span style="margin-left:auto">Fine rate: <b id="rate"></b>/h · Weekly target: <b id="target"></b>h</span>
+    </div>
+
+    <div class="kpis" id="kpis" style="margin-top:18px"></div>
+
+    <div class="grid2" style="margin-top:18px">
+      <div class="card">
+        <h2>Shifts on the market <span class="pill under" id="openCount"></span></h2>
+        <p class="muted" style="margin-top:-6px">Unclaimed this week. Suggested takers: members who owe hours and are free that day.</p>
+        <div class="scroll"><table id="openTbl"></table></div>
+      </div>
+      <div class="card">
+        <h2>Members behind on hours <span class="pill bad" id="riskCount"></span></h2>
+        <p class="muted" style="margin-top:-6px" id="riskNote"></p>
+        <div class="scroll"><table id="riskTbl"></table></div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:18px">
+      <div class="card">
+        <h2>Message to the house <button class="copy" data-copy="msgHouse">Copy</button></h2>
+        <pre id="msgHouse"></pre>
+      </div>
+      <div class="card">
+        <h2>Weekly report for the workshift manager <button class="copy" data-copy="msgWm">Copy</button></h2>
+        <pre id="msgWm"></pre>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h2>Personal nudges <span class="pill under" id="nudgeCount"></span></h2>
+      <p class="muted" style="margin-top:-6px">Kind, private reminders for members behind on hours. Drafts only: the manager reviews and sends.</p>
+      <div id="nudges"></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h2>Agent log</h2>
+      <ul id="log" style="padding:0;margin:0"></ul>
+    </div>
+    <p class="foot">CoopOS reads the house's own spreadsheet. AI drafts, the manager decides. Fines shown are estimates; the house's rules and the workshift manager are the reference.</p>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const FAKE = ["Alex","Bea","Cam","Dev","Eli","Fay","Gus","Hana","Ivo","Jun","Kai","Lou","Mae","Nia","Oli","Pia","Quin","Rae","Sol","Tal","Uma","Vic","Wes","Xia","Yan","Zoe","Ari","Bo","Cy","Dee","Edo","Fin","Gia","Hal","Ida","Jo","Kit","Lev","Mo","Nev","Ora","Pax","Rio","Sky","Teo","Val","Wyn","Yuri","Zed","Ana","Ben","Cleo","Dan","Ema","Flo","Gil","Hugo","Iris","Jay","Kim","Lia","Max","Noa","Oz","Pat","Ren","Sam","Tom","Ula","Vera"];
+let MODEL = null; const pseudo = new Map();
+const nm = (n) => { if (!$("anon").checked) return n; if (!pseudo.has(n)) pseudo.set(n, FAKE[pseudo.size % FAKE.length] + (pseudo.size >= FAKE.length ? " " + Math.floor(pseudo.size / FAKE.length + 1) : "")); return pseudo.get(n); };
+const num = (v) => { const x = parseFloat(v); return isFinite(x) ? x : null; };
+const fmtDate = (d) => d instanceof Date ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+const NOT_PEOPLE = /^(on market|ikc|n\/?a|none|tbd|closed|-+)$/i;
+
+// ---------- parsing (pure code, in the browser) ----------
+function rowsOf(wb, name) { return XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null }); }
+function toDate(v) { if (v instanceof Date) return v; if (typeof v === "number") { const d = XLSX.SSF.parse_date_code(v); return d ? new Date(d.y, d.m - 1, d.d) : null; } return null; }
+
+function parseTracker(wb) {
+  const name = wb.SheetNames.find((n) => /hour\s*tracker/i.test(n)); if (!name) throw new Error("No 'Hour Tracker' tab found");
+  const R = rowsOf(wb, name);
+  let rate = 22, rowHdr = R.findIndex((r) => r && r[0] === "Name");
+  R.forEach((r) => r && r.forEach((c, j) => { if (typeof c === "string" && /workshift rate/i.test(c) && num(r[j + 1])) rate = num(r[j + 1]); }));
+  const included = R.find((r) => r && r[1] === "Included") || [];
+  const weeks = []; // pairs: [owedCol, verifiedCol]
+  for (let j = 1; j + 1 < (R[rowHdr] || []).length; j += 2) {
+    if (!/hours owed/i.test(R[rowHdr][j] || "")) break;
+    weeks.push({ owed: j, ver: j + 1, n: weeks.length + 1, counted: included[j + 1] === true || included[j + 1] === "TRUE" });
+  }
+  // The template computes its own official balance: Name / Rollover / Net / Fine / Processing Fee / Subtotal
+  const H = R[rowHdr] || []; const ci = (re, from = 1) => H.findIndex((c, j) => j >= from && typeof c === "string" && re.test(c.trim()));
+  const nCol = ci(/^name$/i, 1), netCol = ci(/^net$/i), fineCol = ci(/^fine$/i), subCol = ci(/^subtotal$/i), rollCol = ci(/^rollover$/i);
+  const official = {};
+  if (nCol > 0 && netCol > 0) for (let i = rowHdr + 1; i < R.length; i++) {
+    const r = R[i]; if (!r || typeof r[nCol] !== "string") continue;
+    const net = num(r[netCol]); if (net == null) continue;
+    official[r[nCol].trim().toLowerCase()] = { net, fine: num(r[subCol]) ?? num(r[fineCol]) ?? 0, rollover: num(r[rollCol]) ?? 0 };
+  }
+  const members = [];
+  for (let i = rowHdr + 3; i < R.length; i++) {
+    const r = R[i]; if (!r || !r[0] || typeof r[0] !== "string" || /^totals?$/i.test(r[0])) continue;
+    const hist = weeks.filter((w) => w.counted).map((w) => ({ week: w.n, owed: num(r[w.owed]) ?? 0, ver: num(r[w.ver]) ?? 0 }));
+    const owed = hist.reduce((a, h) => a + h.owed, 0), ver = hist.reduce((a, h) => a + h.ver, 0);
+    const o = official[r[0].trim().toLowerCase()];
+    members.push({ name: r[0].trim(), hist, owed, ver, balance: o ? o.net : +(ver - owed).toFixed(2), officialFine: o ? o.fine : null, rollover: o ? o.rollover : 0 });
+  }
+  return { rate, members, countedWeeks: weeks.filter((w) => w.counted).length, official: Object.keys(official).length > 0 };
+}
+
+function parseWeek(wb, sheetName) {
+  const R = rowsOf(wb, sheetName);
+  const di = R.findIndex((r) => r && r.slice(2, 9).filter((c) => toDate(c)).length >= 5);
+  const dates = di >= 0 ? R[di].slice(2, 9).map(toDate) : [];
+  const shifts = []; let section = "";
+  for (let i = (di >= 0 ? di + 1 : 1); i < R.length; i++) {
+    const r = R[i]; if (!r || !r[0]) continue;
+    const label = String(r[0]).replace(/\s+/g, " ").trim();
+    if (/^-+\s*verifier/i.test(label)) continue;
+    const hours = num(r[1]);
+    if (hours == null) { section = label; continue; }
+    const ver = R[i + 1] && /^-+\s*verifier/i.test(String(R[i + 1][0] || "")) ? R[i + 1] : null;
+    const weekLong = /week-long|any day/i.test(section) || r.slice(3, 9).every((c) => !c);
+    const cells = weekLong ? [[0, r[2]]] : DAYS.map((_, d) => [d, r[2 + d]]);
+    for (const [d, who] of cells) {
+      const w = who == null ? "" : String(who).trim();
+      if (!w) continue;
+      shifts.push({ name: label, section, hours, day: weekLong ? "Any" : DAYS[d], dayIdx: weekLong ? -1 : d,
+        who: /^on market$/i.test(w) ? null : w, open: /^on market$/i.test(w),
+        verifier: ver && ver[2 + (weekLong ? 0 : d)] ? String(ver[2 + (weekLong ? 0 : d)]).trim() : "" });
+    }
+  }
+  return { sheetName, dates, shifts };
+}
+
+function weekSheets(wb) {
+  return wb.SheetNames.filter((n) => /^(temp\s+)?week\s+\d+/i.test(n.trim()) && !/summer/i.test(n))
+    .map((n) => ({ n, k: parseInt(n.match(/week\s+(\d+)/i)[1]) })).sort((a, b) => a.k - b.k).map((x) => x.n);
+}
+
+// ---------- analysis (pure code) ----------
+function analyze(T, W) {
+  const target = 5;
+  const known = new Set(T.members.map((m) => m.name.toLowerCase()));
+  const byDay = {}; const assigned = {};
+  for (const s of W.shifts) if (s.who && !NOT_PEOPLE.test(s.who)) {
+    const k = s.who.toLowerCase(); (byDay[k] ||= new Set()).add(s.dayIdx); assigned[k] = (assigned[k] || 0) + s.hours;
+  }
+  const behind = T.members.filter((m) => m.balance < 0).sort((a, b) => a.balance - b.balance);
+  const open = W.shifts.filter((s) => s.open).sort((a, b) => (a.dayIdx < 0 ? 9 : a.dayIdx) - (b.dayIdx < 0 ? 9 : b.dayIdx));
+  const used = {};
+  for (const s of open) {
+    s.suggest = behind.filter((m) => { const k = m.name.toLowerCase(); return !(byDay[k] && byDay[k].has(s.dayIdx)) && (used[k] || 0) < 2; }).slice(0, 3);
+    if (s.suggest[0]) { const k = s.suggest[0].name.toLowerCase(); used[k] = (used[k] || 0) + 1; }
+  }
+  const members = T.members.map((m) => ({ ...m, assignedThisWeek: +(assigned[m.name.toLowerCase()] || 0).toFixed(2), fine: m.officialFine != null ? m.officialFine : Math.max(0, -m.balance) * T.rate }));
+  const noShift = members.filter((m) => m.assignedThisWeek === 0 && m.owed > 0);
+  const unverified = W.shifts.filter((s) => s.who && !s.verifier && !NOT_PEOPLE.test(s.who) && s.dayIdx >= 0);
+  return { target, members, behind: members.filter((m) => m.balance < 0).sort((a, b) => a.balance - b.balance), open,
+    openHours: open.reduce((a, s) => a + s.hours, 0), noShift, unverified,
+    downHours: members.reduce((a, m) => a + Math.max(0, -m.balance), 0), fines: members.reduce((a, m) => a + m.fine, 0) };
+}
+
+// ---------- drafts (Workshift agent, demo templates; live AI if the server has a key) ----------
+function draftHouse(A, W) {
+  const lines = A.open.map((s) => `• ${s.day === "Any" ? "Any day" : s.day}: ${s.name} (${s.hours}h)`);
+  return `Hi everyone! 🧽\n\n${A.open.length} shifts are still on the market this week (${A.openHours}h total):\n${lines.join("\n") || "• none, amazing!"}\n\nIf you owe hours, this is the easiest way to catch up: sign up in the sheet and grab a verifier when you're done.\n\nThanks for keeping the house running!\n[Workshift manager]`;
+}
+function draftWm(A, T, W) {
+  const top = A.behind.slice(0, 5).map((m) => `• ${nm(m.name)}: ${m.balance}h (≈ $${Math.round(m.fine)} if not made up)`).join("\n");
+  return `Week of ${fmtDate(W.dates[0]) || W.sheetName}\n\n` +
+    `• ${A.open.length} shifts on the market (${A.openHours}h)\n` +
+    `• ${A.behind.length} of ${A.members.length} members behind, ${A.downHours.toFixed(1)} down hours in total\n` +
+    `• Estimated fines if nothing changes: $${Math.round(A.fines)} (at $${T.rate}/h)\n` +
+    `• ${A.noShift.length} members have no shift signed up this week\n` +
+    `• ${A.unverified.length} shift entries have no verifier name yet\n\n` +
+    `Most behind:\n${top || "• nobody"}\n\nSuggested next steps:\n` +
+    `1. Post the open shifts in the house chat (draft ready).\n2. Send the private nudges (drafts ready).\n3. Remind verifiers to sign off before the fining period closes.`;
+}
+function draftNudge(m, A, T) {
+  const s = A.open.find((o) => o.suggest.some((x) => x.name === m.name));
+  return `Hi ${nm(m.name).split(" ")[0]}, quick friendly check-in: the tracker shows you ${Math.abs(m.balance)}h behind on workshift this semester ` +
+    `(${m.ver}h verified out of ${m.owed}h owed). ` + (s ? `"${s.name}" on ${s.day === "Any" ? "any day" : s.day} (${s.hours}h) is still open and fits your schedule. ` : "") +
+    `If something's going on (exams, health, anything), tell me and we'll find a solution before fines kick in. [Workshift manager]`;
+}
+
+// ---------- render ----------
+const log = [];
+function render() {
+  const t0 = performance.now();
+  const W = parseWeek(MODEL.wb, $("week").value); const T = MODEL.T; const A = analyze(T, W);
+  log.length = 0;
+  log.push(["Spreadsheet reader (code)", `Read ${T.members.length} members, ${T.countedWeeks} tracked weeks and ${W.shifts.length} shift entries from "${W.sheetName}"`]);
+  log.push(["Analyst (code)", `${A.open.length} open shifts, ${A.behind.length} members behind, $${Math.round(A.fines)} estimated fines`]);
+  log.push(["Matcher (code)", `Suggested takers for ${A.open.filter((s) => s.suggest.length).length} open shifts, among members who owe hours and are free that day`]);
+  log.push(["Workshift agent", `Drafted the house message, the manager report and ${Math.min(A.behind.length, 12)} private nudges (demo templates)`]);
+  $("rate").textContent = "$" + T.rate; $("target").textContent = A.target;
+  $("kpis").innerHTML = [
+    [A.members.length, "members tracked", ""],
+    [A.open.length + ` <small style="font-size:14px">(${A.openHours}h)</small>`, "shifts on the market", A.open.length ? "warn" : "good"],
+    [A.behind.length, "members behind on hours", A.behind.length ? "bad" : "good"],
+    [A.downHours.toFixed(1) + "h", "down hours this semester", A.downHours ? "warn" : "good"],
+    ["$" + Math.round(A.fines).toLocaleString(), "estimated fines if not made up", A.fines ? "bad" : "good"],
+  ].map(([v, l, c]) => `<div class="kpi ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+
+  $("openCount").textContent = `${A.open.length} open · ${A.openHours}h`;
+  $("openTbl").innerHTML = `<tr><th>Day</th><th>Shift</th><th>Hours</th><th>Suggested takers</th></tr>` + (A.open.map((s) =>
+    `<tr><td class="day">${s.day}</td><td>${esc(s.name)}<div class="muted">${esc(s.section)}</div></td><td>${s.hours}h</td>
+     <td class="sug">${s.suggest.length ? s.suggest.map((m, i) => `${i ? "" : "<b>"}${esc(nm(m.name))}${i ? "" : "</b>"} (${m.balance}h)`).join(", ") : "nobody behind is free"}</td></tr>`).join("")
+    || `<tr><td colspan="4">No open shifts this week 🎉</td></tr>`);
+
+  $("riskCount").textContent = `${A.behind.length} behind`;
+  $("riskNote").textContent = T.official ? "Net balance and fines as computed by the house's own tracker (includes rollover and special shifts)." : "Verified minus owed since the start of the semester (weeks counted by the Hour Tracker).";
+  $("riskTbl").innerHTML = `<tr><th>Member</th><th>Balance</th><th>Trend</th><th>This week</th><th>Est. fine</th></tr>` + A.behind.map((m) => {
+    const sp = m.hist.map((h) => { const r = h.owed ? h.ver / h.owed : 1; return `<i class="${h.ver === 0 && h.owed > 0 ? "zero" : r < 1 ? "lo" : ""}" style="height:${Math.max(3, Math.min(22, (h.ver / Math.max(h.owed, 1)) * 18))}px" title="Week ${h.week}: ${h.ver}/${h.owed}h"></i>`; }).join("");
+    return `<tr><td><b>${esc(nm(m.name))}</b></td><td><span class="pill ${m.balance <= -5 ? "bad" : "under"}">${m.balance}h</span></td>
+      <td><span class="spark">${sp}</span></td><td>${m.assignedThisWeek ? m.assignedThisWeek + "h signed up" : '<span class="pill bad">none</span>'}</td><td>$${Math.round(m.fine)}</td></tr>`;
+  }).join("");
+
+  $("msgHouse").textContent = draftHouse(A, W);
+  $("msgWm").textContent = draftWm(A, T, W);
+  const ns = A.behind.slice(0, 12);
+  $("nudgeCount").textContent = `${ns.length} drafts`;
+  $("nudges").innerHTML = ns.map((m, i) => `<p style="margin:10px 0 6px;display:flex;justify-content:space-between;align-items:center"><b>To ${esc(nm(m.name))}</b><button class="copy" data-copy="n${i}">Copy</button></p><pre id="n${i}">${esc(draftNudge(m, A, T))}</pre>`).join("") || "<p>Nobody is behind. 🎉</p>";
+  $("log").innerHTML = log.map(([a, s]) => `<li style="list-style:none;margin-bottom:8px"><b>${esc(a)}</b>: ${esc(s)}</li>`).join("") +
+    `<li class="muted" style="list-style:none">Processed in ${Math.round(performance.now() - t0)} ms, entirely in this browser.</li>`;
+  document.querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { navigator.clipboard.writeText($(b.dataset.copy).innerText); b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 2000); });
+}
+
+async function load(file) {
+  if (typeof XLSX === "undefined") { alert("The spreadsheet reader needs an internet connection the first time (it loads from cdnjs)."); return; }
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const T = parseTracker(wb); const weeks = weekSheets(wb);
+    if (!weeks.length) throw new Error("No weekly sign-up tabs (WEEK 1, WEEK 2, …) found");
+    MODEL = { wb, T }; pseudo.clear();
+    const today = new Date(); let pick = weeks[weeks.length - 1];
+    for (const w of weeks) { const d = parseWeek(wb, w).dates.filter(Boolean); if (d.length && today >= d[0] && today <= new Date(+d[d.length - 1] + 86400000)) pick = w; }
+    $("week").innerHTML = weeks.map((w) => `<option${w === pick ? " selected" : ""}>${esc(w)}</option>`).join("");
+    $("fname").innerHTML = `📄 <b>${esc(file.name)}</b>`;
+    $("dash").classList.remove("hidden"); $("drop").querySelector("b").textContent = "Drop another spreadsheet to replace it";
+    render();
+  } catch (e) { alert("Couldn't read this spreadsheet: " + e.message); console.error(e); }
+}
+$("file").onchange = (e) => e.target.files[0] && load(e.target.files[0]);
+const drop = $("drop");
+["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => e.dataTransfer.files[0] && load(e.dataTransfer.files[0]));
+$("week").onchange = render; $("anon").onchange = () => { pseudo.clear(); render(); };
+</script>
+</body>
+</html>

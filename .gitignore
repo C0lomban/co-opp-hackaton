@@ -1,2 +1,6 @@
 app/.env
 node_modules
+# never commit real co-op data
+*.xlsx
+*.xls
+*.csv
